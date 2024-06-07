@@ -1,0 +1,37 @@
+file_dist: {
+  H1N1pdm_HA: 1.0,
+  H1N1pdm_NA: 1.0,
+  H1N1pdm_NS: 1.0,
+  H1N1pdm_PA: 1.0
+}
+
+q_range: {
+  lower: 30,
+  upper: 40
+}
+
+profiles: {
+  illumina_pe_nextera: {
+    fragment_mean: 300,
+    fragment_std_dev: 30,
+    read1: {
+        strand: "FWD",
+        length: 150,
+        adapter: "CTGTCTCTTATACACATCTCCGAGCCCACGAGAC"
+    },
+    read2: {
+        strand: "REV",
+        length: 150,
+        adapter: "CTGTCTCTTATACACATCTGACGCTGCCGACGA"
+    }
+  },
+  illumina_se_nextera: {
+    fragment_mean: 300,
+    fragment_std_dev: 30,
+    read1: {
+        strand: "FWD",
+        length: 150,
+        adapter: "CTGTCTCTTATACACATCTCCGAGCCCACGAGAC"
+    }
+  }
+}
