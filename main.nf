@@ -70,9 +70,10 @@ if (params.generate_reads) {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { SEQ_SIMULATOR } from './modules/local/seq_simulator/main'
-include { FASTQC        } from './modules/nf-core/fastqc/main'
-include { MULTIQC       } from './modules/nf-core/multiqc/main'
+include { SEQ_SIMULATOR   } from './modules/local/seq_simulator/main'
+include { SPADES_ASSEMBLE } from './modules/local/spades/assemble/main'
+include { FASTQC          } from './modules/nf-core/fastqc/main'
+include { MULTIQC         } from './modules/nf-core/multiqc/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -101,30 +102,34 @@ workflow {
     )
     ch_fastq = SEQ_SIMULATOR.out.fastq
 
-    FASTQC (
+    SPADES_ASSEMBLE (
         ch_fastq
     )
-    ch_fastqc_zip = FASTQC.out.zip
+
+    // FASTQC (
+    //     ch_fastq
+    // )
+    // ch_fastqc_zip = FASTQC.out.zip
 
     // 
     // MODULE: MULTIQC
     // 
-    workflow_summary = multiqc_summary(workflow, params)
-    ch_workflow_summary = Channel.value(workflow_summary)
+    // workflow_summary = multiqc_summary(workflow, params)
+    // ch_workflow_summary = Channel.value(workflow_summary)
 
-    ch_multiqc_files = Channel.empty()
-    ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
+    // ch_multiqc_files = Channel.empty()
+    // ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
     // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
     // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
 
-    ch_multiqc_files = ch_multiqc_files.mix(ch_fastqc_zip.collect{it[1]}.ifEmpty([]))
+    // ch_multiqc_files = ch_multiqc_files.mix(ch_fastqc_zip.collect{it[1]}.ifEmpty([]))
 
-    MULTIQC (
-        ch_multiqc_files.collect(),
-        ch_multiqc_config,
-        [],
-        []
-    )
+    // MULTIQC (
+    //     ch_multiqc_files.collect(),
+    //     ch_multiqc_config,
+    //     [],
+    //     []
+    // )
 
 }
 
