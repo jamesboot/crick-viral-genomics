@@ -196,7 +196,7 @@ def params_summary_map(workflow, params, debug) {
 
     // Output all other parameters if we have a debug flag or just non-ignored
     def other_params = new LinkedHashMap()
-    def default_ignore = ['debug', 'ignore_params', 'outdir', 'tracedir', 'publish_dir_mode', 'max_memory', 'max_cpus', 'max_time', 'test_data', 'goodwright_test_data']
+    def default_ignore = ['debug', 'ignore_params', 'tracedir', 'max_memory', 'max_cpus', 'max_time', 'genomes']
     def params_ignore = params.ignore_params.split(',')
     Set params_key_set = params.keySet()
 

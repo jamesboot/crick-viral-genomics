@@ -13,6 +13,7 @@ include { summary_log        } from './modules/local/util/logging/main'
 include { multiqc_summary    } from './modules/local/util/logging/main'
 // include { dump_parameters    } from './modules/local/util/logging/main'
 // include { im_notification    } from './modules/local/util/logging/main'
+include { get_genome_attribute } from './modules/local/util/references/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -22,6 +23,15 @@ include { multiqc_summary    } from './modules/local/util/logging/main'
 
 ch_multiqc_config = file("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
 ch_seq_sim_config = file(params.seq_sim_config, checkIfExists: true)
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    REFERENCES
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+params.fasta = get_genome_attribute(params, 'fasta')
+params.bwa   = get_genome_attribute(params, 'bwa'  )
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -40,6 +50,7 @@ def summary_params = params_summary_map(workflow, params, params.debug)
 
 // Check manditory input parameters to see if the files exist if they have been specified
 check_param_list = [
+    fasta: params.fasta
 ]
 for (param in check_param_list) {
     if (!param.value) {
@@ -52,6 +63,7 @@ for (param in check_param_list) {
 
 // Check non-manditory input parameters to see if the files exist if they have been specified
 check_param_list = [
+    params.sample_sheet,
     params.seq_sim_ref_dir,
     params.seq_sim_config
 ]
@@ -70,10 +82,12 @@ if (params.generate_reads) {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { SEQ_SIMULATOR   } from './modules/local/seq_simulator/main'
-include { SPADES_ASSEMBLE } from './modules/local/spades/assemble/main'
-include { FASTQC          } from './modules/nf-core/fastqc/main'
-include { MULTIQC         } from './modules/nf-core/multiqc/main'
+include { SEQ_SIMULATOR          } from './modules/local/seq_simulator/main'
+include { GUNZIP as GUNZIP_FASTA } from './modules/nf-core/gunzip/main'
+include { BWA_INDEX              } from './modules/nf-core/bwa/index/main'
+include { SPADES_ASSEMBLE        } from './modules/local/spades/assemble/main'
+include { FASTQC                 } from './modules/nf-core/fastqc/main'
+include { MULTIQC                } from './modules/nf-core/multiqc/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -89,10 +103,15 @@ include { MULTIQC         } from './modules/nf-core/multiqc/main'
 
 workflow {
     //
-    // INIT:
+    // INIT
     // 
     ch_versions    = Channel.empty()
-    // ch_samplesheet = Channel.empty()
+    ch_samplesheet = Channel.empty()
+    ch_fasta       = file(params.fasta, checkIfExists: true)
+    ch_bwa         = Channel.empty()
+    if(params.bwa) {
+        ch_bwa = file(params.bwa, checkIfExists: true)
+    }
 
     SEQ_SIMULATOR (
         ch_seq_sim_refs.map{[ [id: "${params.seq_sim_profile}_test"], it ]},
@@ -102,9 +121,39 @@ workflow {
     )
     ch_fastq = SEQ_SIMULATOR.out.fastq
 
-    SPADES_ASSEMBLE (
-        ch_fastq
-    )
+    ch_bwa_index = Channel.empty()
+    if(params.run_genome) {
+        //
+        // MODULE: Uncompress genome fasta file if required
+        //
+        if (ch_fasta.toString().endsWith(".gz")) {
+            ch_fasta    = GUNZIP_FASTA ( [ [id:ch_fasta.baseName], ch_fasta ] ).gunzip
+            ch_versions = ch_versions.mix(GUNZIP_FASTA.out.versions)
+        }
+        else {
+            ch_fasta = Channel.from( [ [ [id:ch_fasta.baseName], ch_fasta ] ] )
+        }
+
+        //
+        // MODULES: Uncompress BWA index or generate if required
+        //
+        if (params.bwa) {
+            if (ch_bwa_index.toString().endsWith(".tar.gz")) {
+                ch_bwa_index = UNTAR_BWA ( [[:], ch_bwa_index] ).untar
+                ch_versions  = ch_versions.mix( UNTAR_BWA.out.versions )
+            } else {
+                ch_bwa_index = Channel.of([[:], ch_bwa_index])
+            }
+        }
+        else {
+            ch_bwa_index = BWA_INDEX ( ch_fasta ).index
+            ch_versions  = ch_versions.mix(BWA_INDEX.out.versions)
+        }
+    }
+
+    // SPADES_ASSEMBLE (
+    //     ch_fastq
+    // )
 
     // FASTQC (
     //     ch_fastq

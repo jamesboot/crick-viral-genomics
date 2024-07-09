@@ -1,3 +1,11 @@
+file_dist: {
+  H1N1pdm_HA: 1.0,
+  H1N1pdm_NA: 1.0,
+  H1N1pdm_NS: 1.0,
+  H1N1pdm_PA: 1.0,
+  host: 1.0
+}
+
 q_range: {
   lower: 30,
   upper: 40
