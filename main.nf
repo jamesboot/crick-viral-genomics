@@ -30,8 +30,8 @@ ch_seq_sim_config = file(params.seq_sim_config, checkIfExists: true)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-params.fasta = get_genome_attribute(params, 'fasta')
-params.bwa   = get_genome_attribute(params, 'bwa'  )
+params.host_fasta = get_genome_attribute(params, 'fasta')
+params.host_bwa   = get_genome_attribute(params, 'bwa'  )
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -50,7 +50,7 @@ def summary_params = params_summary_map(workflow, params, params.debug)
 
 // Check manditory input parameters to see if the files exist if they have been specified
 check_param_list = [
-    fasta: params.fasta
+    host_fasta: params.host_fasta
 ]
 for (param in check_param_list) {
     if (!param.value) {
@@ -107,10 +107,10 @@ workflow {
     // 
     ch_versions    = Channel.empty()
     ch_samplesheet = Channel.empty()
-    ch_fasta       = file(params.fasta, checkIfExists: true)
-    ch_bwa         = Channel.empty()
-    if(params.bwa) {
-        ch_bwa = file(params.bwa, checkIfExists: true)
+    ch_host_fasta  = file(params.host_fasta, checkIfExists: true)
+    ch_host_bwa    = Channel.empty()
+    if(params.host_bwa) {
+        ch_host_bwa = file(params.host_bwa, checkIfExists: true)
     }
 
     SEQ_SIMULATOR (
@@ -121,32 +121,32 @@ workflow {
     )
     ch_fastq = SEQ_SIMULATOR.out.fastq
 
-    ch_bwa_index = Channel.empty()
+    ch_host_bwa_index = Channel.empty()
     if(params.run_genome) {
         //
         // MODULE: Uncompress genome fasta file if required
         //
-        if (ch_fasta.toString().endsWith(".gz")) {
-            ch_fasta    = GUNZIP_FASTA ( [ [id:ch_fasta.baseName], ch_fasta ] ).gunzip
+        if (ch_host_fasta.toString().endsWith(".gz")) {
+            ch_host_fasta = GUNZIP_FASTA ( [ [id:ch_host_fasta.baseName], ch_host_fasta ] ).gunzip
             ch_versions = ch_versions.mix(GUNZIP_FASTA.out.versions)
         }
         else {
-            ch_fasta = Channel.from( [ [ [id:ch_fasta.baseName], ch_fasta ] ] )
+            ch_host_fasta = Channel.from( [ [ [id:ch_host_fasta.baseName], ch_host_fasta ] ] )
         }
 
         //
         // MODULES: Uncompress BWA index or generate if required
         //
-        if (params.bwa) {
-            if (ch_bwa_index.toString().endsWith(".tar.gz")) {
-                ch_bwa_index = UNTAR_BWA ( [[:], ch_bwa_index] ).untar
+        if (params.host_bwa) {
+            if (ch_host_bwa_index.toString().endsWith(".tar.gz")) {
+                ch_host_bwa_index = UNTAR_BWA ( [[:], ch_host_bwa_index] ).untar
                 ch_versions  = ch_versions.mix( UNTAR_BWA.out.versions )
             } else {
-                ch_bwa_index = Channel.of([[:], ch_bwa_index])
+                ch_host_bwa_index = Channel.of([[:], ch_host_bwa_index])
             }
         }
         else {
-            ch_bwa_index = BWA_INDEX ( ch_fasta ).index
+            ch_host_bwa_index = BWA_INDEX ( ch_host_fasta ).index
             ch_versions  = ch_versions.mix(BWA_INDEX.out.versions)
         }
     }
