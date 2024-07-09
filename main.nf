@@ -85,6 +85,7 @@ if (params.generate_reads) {
 include { SEQ_SIMULATOR          } from './modules/local/seq_simulator/main'
 include { GUNZIP as GUNZIP_FASTA } from './modules/nf-core/gunzip/main'
 include { BWA_INDEX              } from './modules/nf-core/bwa/index/main'
+include { BWA_MEM as BWA_ALIGN_HOST  } from './modules/nf-core/bwa/mem/main'
 include { SPADES_ASSEMBLE        } from './modules/local/spades/assemble/main'
 include { FASTQC                 } from './modules/nf-core/fastqc/main'
 include { MULTIQC                } from './modules/nf-core/multiqc/main'
@@ -94,6 +95,8 @@ include { MULTIQC                } from './modules/nf-core/multiqc/main'
     IMPORT SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+
+include { BAM_SORT_STATS_SAMTOOLS as BAM_HOST_SORT_STATS } from './subworkflows/nf-core/bam_sort_stats_samtools/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -105,10 +108,11 @@ workflow {
     //
     // INIT
     // 
-    ch_versions    = Channel.empty()
-    ch_samplesheet = Channel.empty()
-    ch_host_fasta  = file(params.host_fasta, checkIfExists: true)
-    ch_host_bwa    = Channel.empty()
+    ch_versions      = Channel.empty()
+    ch_multiqc_files = Channel.empty()
+    ch_samplesheet   = Channel.empty()
+    ch_host_fasta    = file(params.host_fasta, checkIfExists: true)
+    ch_host_bwa      = Channel.empty()
     if(params.host_bwa) {
         ch_host_bwa = file(params.host_bwa, checkIfExists: true)
     }
@@ -139,47 +143,77 @@ workflow {
         //
         if (params.host_bwa) {
             if (ch_host_bwa_index.toString().endsWith(".tar.gz")) {
-                ch_host_bwa_index = UNTAR_BWA ( [[:], ch_host_bwa_index] ).untar
-                ch_versions  = ch_versions.mix( UNTAR_BWA.out.versions )
+                UNTAR_BWA ( [[:], ch_host_bwa_index] )
+                ch_versions       = ch_versions.mix( UNTAR_BWA.out.versions )
+                ch_host_bwa_index = UNTAR_BWA.out.untar
+
             } else {
                 ch_host_bwa_index = Channel.of([[:], ch_host_bwa_index])
             }
         }
         else {
-            ch_host_bwa_index = BWA_INDEX ( ch_host_fasta ).index
-            ch_versions  = ch_versions.mix(BWA_INDEX.out.versions)
+            BWA_INDEX ( ch_host_fasta )
+            ch_versions       = ch_versions.mix(BWA_INDEX.out.versions)
+            ch_host_bwa_index = BWA_INDEX.out.index
         }
     }
+
+    //
+    // MODULE: Fastqc on raw reads
+    //
+    FASTQC (
+        ch_fastq
+    )
+    ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]})
+
+    //
+    // MODULE: Map raw reads to host
+    //
+    BWA_ALIGN_HOST (
+        ch_fastq,
+        ch_host_bwa_index,
+        ch_host_fasta,
+        "view"
+    )
+    ch_versions = ch_versions.mix(BWA_ALIGN_HOST.out.versions)
+    ch_host_bam = BWA_ALIGN_HOST.out.bam
+
+    //
+    // SUBWORKFLOW: Sort, index BAM file and run samtools stats, flagstat and idxstats
+    //
+    BAM_HOST_SORT_STATS (
+        ch_host_bam,
+        ch_host_fasta
+    )
+    ch_versions           = ch_versions.mix(BAM_HOST_SORT_STATS.out.versions)
+    ch_host_bam           = BAM_HOST_SORT_STATS.out.bam
+    ch_host_bai           = BAM_HOST_SORT_STATS.out.bai
+    ch_host_bam_stats     = BAM_HOST_SORT_STATS.out.stats
+    ch_host_bams_flagstat = BAM_HOST_SORT_STATS.out.flagstat
+    ch_host_bam_idxstats  = BAM_HOST_SORT_STATS.out.idxstats
+    ch_multiqc_files      = ch_multiqc_files.mix(ch_host_bam_stats.collect{it[1]})
+    ch_multiqc_files      = ch_multiqc_files.mix(ch_host_bams_flagstat.collect{it[1]})
+    ch_multiqc_files      = ch_multiqc_files.mix(ch_host_bam_idxstats.collect{it[1]})
 
     // SPADES_ASSEMBLE (
     //     ch_fastq
     // )
 
-    // FASTQC (
-    //     ch_fastq
-    // )
-    // ch_fastqc_zip = FASTQC.out.zip
-
     // 
     // MODULE: MULTIQC
     // 
-    // workflow_summary = multiqc_summary(workflow, params)
-    // ch_workflow_summary = Channel.value(workflow_summary)
-
-    // ch_multiqc_files = Channel.empty()
-    // ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
+    workflow_summary = multiqc_summary(workflow, params)
+    ch_workflow_summary = Channel.value(workflow_summary)
+    ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
     // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
     // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
 
-    // ch_multiqc_files = ch_multiqc_files.mix(ch_fastqc_zip.collect{it[1]}.ifEmpty([]))
-
-    // MULTIQC (
-    //     ch_multiqc_files.collect(),
-    //     ch_multiqc_config,
-    //     [],
-    //     []
-    // )
-
+    MULTIQC (
+        ch_multiqc_files.collect(),
+        ch_multiqc_config,
+        [],
+        []
+    )
 }
 
 /*

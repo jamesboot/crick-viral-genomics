@@ -9,7 +9,15 @@
 run_modules:
   - custom_content
   - fastqc
+  - samtools
 
 module_order:
   - fastqc
+  - samtools:
+    name: "Host Genome"
+    info: "Host genonme alignment information"
+    path_filters:
+      - "*/*.host.stats"
+      - "*/*.host.idxstats"
+      - "*/*.host.flagstat"
   - custom_content
