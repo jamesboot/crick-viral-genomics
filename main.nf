@@ -82,13 +82,16 @@ if (params.generate_reads) {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { SEQ_SIMULATOR          } from './modules/local/seq_simulator/main'
-include { GUNZIP as GUNZIP_FASTA } from './modules/nf-core/gunzip/main'
-include { BWA_INDEX              } from './modules/nf-core/bwa/index/main'
-include { BWA_MEM as BWA_ALIGN_HOST  } from './modules/nf-core/bwa/mem/main'
-include { SPADES_ASSEMBLE        } from './modules/local/spades/assemble/main'
-include { FASTQC                 } from './modules/nf-core/fastqc/main'
-include { MULTIQC                } from './modules/nf-core/multiqc/main'
+include { SEQ_SIMULATOR                          } from './modules/local/seq_simulator/main'
+include { GUNZIP as GUNZIP_FASTA                 } from './modules/nf-core/gunzip/main'
+include { BWA_INDEX                              } from './modules/nf-core/bwa/index/main'
+include { BWA_MEM as BWA_ALIGN_HOST              } from './modules/nf-core/bwa/mem/main'
+include { SAMTOOLS_VIEW as SAMTOOLS_VIEW_HOST    } from './modules/nf-core/samtools/view/main'
+include { SAMTOOLS_SORT as SAMTOOLS_SORT_VIRAL   } from './modules/nf-core/samtools/sort/main'
+include { SAMTOOLS_FASTQ                         } from './modules/nf-core/samtools/fastq/main'
+include { SPADES_ASSEMBLE                        } from './modules/local/spades/assemble/main'
+include { FASTQC                                 } from './modules/nf-core/fastqc/main'
+include { MULTIQC                                } from './modules/nf-core/multiqc/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -195,9 +198,51 @@ workflow {
     ch_multiqc_files      = ch_multiqc_files.mix(ch_host_bams_flagstat.collect{it[1]})
     ch_multiqc_files      = ch_multiqc_files.mix(ch_host_bam_idxstats.collect{it[1]})
 
-    // SPADES_ASSEMBLE (
-    //     ch_fastq
-    // )
+    //
+    // CHANNEL: Combine bam and bai files
+    //
+    ch_host_bam_bai = ch_host_bam
+    .map { row -> [row[0].id, row ].flatten()}
+    .join ( ch_host_bai.map { row -> [row[0].id, row ].flatten()} )
+    .map { row -> [row[1], row[2], row[4]] }
+
+    //
+    // MODULE: Filter for unmapped reads
+    //
+    SAMTOOLS_VIEW_HOST (
+        ch_host_bam_bai,
+        ch_host_fasta,
+        []
+    )
+    ch_versions = ch_versions.mix(SAMTOOLS_VIEW_HOST.out.versions)
+    ch_bam = SAMTOOLS_VIEW_HOST.out.bam
+
+    //
+    // MODULE: Sort by name
+    //
+    SAMTOOLS_SORT_VIRAL (
+        ch_bam,
+        [[],[]]
+    )
+    ch_versions = ch_versions.mix(SAMTOOLS_VIEW_HOST.out.versions)
+    ch_bam = SAMTOOLS_SORT_VIRAL.out.bam
+
+    //
+    // MODULE: Convert to fastq
+    //
+    SAMTOOLS_FASTQ (
+        ch_bam,
+        false
+    )
+    ch_versions = ch_versions.mix(SAMTOOLS_FASTQ.out.versions)
+    ch_fastq = SAMTOOLS_FASTQ.out.fastq
+
+    //
+    // MODULE: First assembly of non-host reads
+    //
+    SPADES_ASSEMBLE (
+        ch_fastq
+    )
 
     // 
     // MODULE: MULTIQC
@@ -208,12 +253,12 @@ workflow {
     // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
     // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
 
-    MULTIQC (
-        ch_multiqc_files.collect(),
-        ch_multiqc_config,
-        [],
-        []
-    )
+    // MULTIQC (
+    //     ch_multiqc_files.collect(),
+    //     ch_multiqc_config,
+    //     [],
+    //     []
+    // )
 }
 
 /*
