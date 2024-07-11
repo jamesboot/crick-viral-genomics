@@ -8,8 +8,8 @@ process SPADES_ASSEMBLE {
     tuple val(meta), path(reads)
 
     output:
-    // tuple val(meta), path("*.fastq.gz"), emit: fastq
-    tuple val("${task.process}"), val('spades'), eval('spades.py --version'), topic: versions 
+    tuple val(meta), path("spades/contigs.fasta"), emit: contigs
+    // tuple val("${task.process}"), val('spades'), eval('spades.py --version'), topic: versions
 
     script:
     def args   = task.ext.args ?: ''

@@ -82,16 +82,19 @@ if (params.generate_reads) {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { SEQ_SIMULATOR                          } from './modules/local/seq_simulator/main'
-include { GUNZIP as GUNZIP_FASTA                 } from './modules/nf-core/gunzip/main'
-include { BWA_INDEX                              } from './modules/nf-core/bwa/index/main'
-include { BWA_MEM as BWA_ALIGN_HOST              } from './modules/nf-core/bwa/mem/main'
-include { SAMTOOLS_VIEW as SAMTOOLS_VIEW_HOST    } from './modules/nf-core/samtools/view/main'
-include { SAMTOOLS_SORT as SAMTOOLS_SORT_VIRAL   } from './modules/nf-core/samtools/sort/main'
-include { SAMTOOLS_FASTQ                         } from './modules/nf-core/samtools/fastq/main'
-include { SPADES_ASSEMBLE                        } from './modules/local/spades/assemble/main'
-include { FASTQC                                 } from './modules/nf-core/fastqc/main'
-include { MULTIQC                                } from './modules/nf-core/multiqc/main'
+include { SEQ_SIMULATOR                        } from './modules/local/seq_simulator/main'
+include { GUNZIP as GUNZIP_FASTA               } from './modules/nf-core/gunzip/main'
+include { BWA_INDEX                            } from './modules/nf-core/bwa/index/main'
+include { BWA_MEM as BWA_ALIGN_HOST            } from './modules/nf-core/bwa/mem/main'
+include { SAMTOOLS_VIEW as SAMTOOLS_VIEW_HOST  } from './modules/nf-core/samtools/view/main'
+include { SAMTOOLS_SORT as SAMTOOLS_SORT_VIRAL } from './modules/nf-core/samtools/sort/main'
+include { SAMTOOLS_FASTQ                       } from './modules/nf-core/samtools/fastq/main'
+include { SPADES_ASSEMBLE                      } from './modules/local/spades/assemble/main'
+include { LINUX_COMMAND as MERGE_DETERMINANTS  } from './modules/local/linux/command/main'
+include { BLAST_MAKEBLASTDB                    } from './modules/nf-core/blast/makeblastdb/main'
+include { BLAST_BLASTN                         } from './modules/nf-core/blast/blastn/main'
+include { FASTQC                               } from './modules/nf-core/fastqc/main'
+include { MULTIQC                              } from './modules/nf-core/multiqc/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -119,6 +122,7 @@ workflow {
     if(params.host_bwa) {
         ch_host_bwa = file(params.host_bwa, checkIfExists: true)
     }
+    ch_viral_fasta = Channel.fromPath(params.viral_fasta).collect().map{[[id:"fasta"], it]}
 
     SEQ_SIMULATOR (
         ch_seq_sim_refs.map{[ [id: "${params.seq_sim_profile}_test"], it ]},
@@ -243,6 +247,37 @@ workflow {
     SPADES_ASSEMBLE (
         ch_fastq
     )
+    // ch_versions = ch_versions.mix(SPADES_ASSEMBLE.out.versions)
+    ch_contigs = SPADES_ASSEMBLE.out.contigs
+
+    //
+    // MODULE: Concat the determinant files into one file
+    //
+    MERGE_DETERMINANTS (
+        ch_viral_fasta,
+        [],
+        false
+    )
+    ch_merged_viral_fasta = MERGE_DETERMINANTS.out.file
+
+    //
+    // MODULE: Build blastdb of viral segments
+    //
+    BLAST_MAKEBLASTDB (
+        ch_merged_viral_fasta
+    )
+    ch_versions      = ch_versions.mix(BLAST_MAKEBLASTDB.out.versions)
+    ch_viral_blastdb = BLAST_MAKEBLASTDB.out.db
+
+    //
+    // MODULE: Blast contigs against viral segments
+    //
+    BLAST_BLASTN (
+        ch_contigs,
+        ch_viral_blastdb
+    )
+    ch_versions   = ch_versions.mix(BLAST_BLASTN.out.versions)
+    // ch_read_blast = BLAST_READS.out.txt
 
     // 
     // MODULE: MULTIQC
