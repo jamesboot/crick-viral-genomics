@@ -19,16 +19,20 @@ process LINUX_COMMAND {
     task.ext.when == null || task.ext.when
 
     script:
-    def prefix = task.ext.suffix ? "${meta.id}${task.ext.suffix}" : "${meta.id}"
-    def ext    = task.ext.ext ?: 'txt'
-    def cmd1   = task.ext.cmd1 ?: 'echo "NO-ARGS"'
-    def cmd2   = task.ext.cmd2 ?: ''
+    def prefix   = task.ext.suffix ? "${meta.id}${task.ext.suffix}" : "${meta.id}"
+    def ext      = task.ext.ext ?: 'txt'
+    def post_cmd = task.ext.post_cmd ?: 'echo "NO-ARGS"'
+    def pre_cmd  = task.ext.pre_cmd ?: ''
+    def copy_cmd = ''
+    def target_files = input
     if(copy_input) {
-        cmd2 = task.ext.cmd2 ? "CMD2=`cat $input | ${task.ext.cmd2}`" : ''
+        copy_cmd = "for file in $input; do cp \"\$file\" \"\$file.copy\"; done"
+        target_files = input.collect{ file -> "${file}.copy"}.join(' ')
     }
 
     """
-    $cmd2
-    cat $input | $cmd1 > ${prefix}.cmd.${ext}
+    $copy_cmd
+    $pre_cmd
+    cat $target_files | $post_cmd > ${prefix}.cmd.${ext}
     """
 }

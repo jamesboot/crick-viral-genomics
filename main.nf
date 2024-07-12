@@ -1,6 +1,7 @@
 #!/usr/bin/env nextflow
 
 nextflow.enable.dsl = 2
+// nextflow.preview.recursion = true
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -11,8 +12,6 @@ nextflow.enable.dsl = 2
 include { params_summary_map } from './modules/local/util/logging/main'
 include { summary_log        } from './modules/local/util/logging/main'
 include { multiqc_summary    } from './modules/local/util/logging/main'
-// include { dump_parameters    } from './modules/local/util/logging/main'
-// include { im_notification    } from './modules/local/util/logging/main'
 include { get_genome_attribute } from './modules/local/util/references/main'
 
 /*
@@ -122,7 +121,7 @@ workflow {
     if(params.host_bwa) {
         ch_host_bwa = file(params.host_bwa, checkIfExists: true)
     }
-    ch_viral_fasta = Channel.fromPath(params.viral_fasta).collect().map{[[id:"fasta"], it]}
+    ch_viral_fasta = Channel.fromPath(params.viral_fasta).toSortedList().map{[[id:"fasta"], it]}
 
     SEQ_SIMULATOR (
         ch_seq_sim_refs.map{[ [id: "${params.seq_sim_profile}_test"], it ]},
@@ -256,7 +255,7 @@ workflow {
     MERGE_DETERMINANTS (
         ch_viral_fasta,
         [],
-        false
+        true
     )
     ch_merged_viral_fasta = MERGE_DETERMINANTS.out.file
 
@@ -278,6 +277,10 @@ workflow {
     )
     ch_versions   = ch_versions.mix(BLAST_BLASTN.out.versions)
     // ch_read_blast = BLAST_READS.out.txt
+
+    //
+    // CHANNEL: Combine bam and bai files
+    //
 
     // 
     // MODULE: MULTIQC
