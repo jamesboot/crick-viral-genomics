@@ -18,6 +18,10 @@ def build_fasta_from_top_blast_hits(refs, blast, output):
     with open(blast, "r") as in_f:
         blast_lines = in_f.readlines()
 
+    # if the blast file is empty, error out
+    if len(blast_lines) == 0:
+        sys.exit("Error: No top hits detected in the blast file.")
+
     # build list of the second column of the blast file
     top_blast_hits = []
     for line in blast_lines:
@@ -25,8 +29,8 @@ def build_fasta_from_top_blast_hits(refs, blast, output):
 
     # if there are duplicates, error out
     if len(top_blast_hits) != len(set(top_blast_hits)):
-        sys.exit("Error: Duplicate hits in the top blast hits")
-    
+        sys.exit("Error: Duplicate hits in the top blast hits.")
+
     # parse the reference fasta file
     fasta = Fasta()
     fasta = fasta.read_file(refs)
