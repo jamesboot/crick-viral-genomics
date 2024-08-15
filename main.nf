@@ -83,16 +83,17 @@ if (params.generate_reads) {
 
 include { SEQ_SIMULATOR                        } from './modules/local/seq_simulator/main'
 include { GUNZIP as GUNZIP_FASTA               } from './modules/nf-core/gunzip/main'
+include { FASTQC                               } from './modules/nf-core/fastqc/main'
 include { BWA_INDEX                            } from './modules/nf-core/bwa/index/main'
 include { BWA_MEM as BWA_ALIGN_HOST            } from './modules/nf-core/bwa/mem/main'
 include { SAMTOOLS_VIEW as SAMTOOLS_VIEW_HOST  } from './modules/nf-core/samtools/view/main'
 include { SAMTOOLS_SORT as SAMTOOLS_SORT_VIRAL } from './modules/nf-core/samtools/sort/main'
 include { SAMTOOLS_FASTQ                       } from './modules/nf-core/samtools/fastq/main'
 include { SPADES_ASSEMBLE                      } from './modules/local/spades/assemble/main'
-include { LINUX_COMMAND as MERGE_DETERMINANTS  } from './modules/local/linux/command/main'
+include { LINUX_COMMAND as MERGE_REFS          } from './modules/local/linux/command/main'
 include { BLAST_MAKEBLASTDB                    } from './modules/nf-core/blast/makeblastdb/main'
 include { BLAST_BLASTN                         } from './modules/nf-core/blast/blastn/main'
-include { FASTQC                               } from './modules/nf-core/fastqc/main'
+include { PYTHON_BUILD_REFERENCE_FASTA         } from './modules/local/python/build_reference_fasta/main'
 include { MULTIQC                              } from './modules/nf-core/multiqc/main'
 
 /*
@@ -112,7 +113,7 @@ include { BAM_SORT_STATS_SAMTOOLS as BAM_HOST_SORT_STATS } from './subworkflows/
 workflow {
     //
     // INIT
-    // 
+    //
     ch_versions      = Channel.empty()
     ch_multiqc_files = Channel.empty()
     ch_samplesheet   = Channel.empty()
@@ -123,6 +124,9 @@ workflow {
     }
     ch_viral_fasta = Channel.fromPath(params.viral_fasta).toSortedList().map{[[id:"fasta"], it]}
 
+    //
+    // MODULE: Uncompress genome fasta file if required
+    //
     SEQ_SIMULATOR (
         ch_seq_sim_refs.map{[ [id: "${params.seq_sim_profile}_test"], it ]},
         ch_seq_sim_config,
@@ -250,14 +254,14 @@ workflow {
     ch_contigs = SPADES_ASSEMBLE.out.contigs
 
     //
-    // MODULE: Concat the determinant files into one file
+    // MODULE: Concat the reference files into one file
     //
-    MERGE_DETERMINANTS (
+    MERGE_REFS (
         ch_viral_fasta,
         [],
         true
     )
-    ch_merged_viral_fasta = MERGE_DETERMINANTS.out.file
+    ch_merged_viral_fasta = MERGE_REFS.out.file
 
     //
     // MODULE: Build blastdb of viral segments
@@ -275,19 +279,26 @@ workflow {
         ch_contigs,
         ch_viral_blastdb
     )
-    ch_versions   = ch_versions.mix(BLAST_BLASTN.out.versions)
-    // ch_read_blast = BLAST_READS.out.txt
+    ch_versions = ch_versions.mix(BLAST_BLASTN.out.versions)
+    ch_blast    = BLAST_BLASTN.out.txt
 
     //
-    // CHANNEL: Combine bam and bai files
+    // MODULE: Build reference fasta from top blast hits
     //
+    PYTHON_BUILD_REFERENCE_FASTA (
+        ch_merged_viral_fasta,
+        ch_blast
+    )
+    ch_versions       = ch_versions.mix(PYTHON_BUILD_REFERENCE_FASTA.out.versions)
+    ch_top_hits_fasta = PYTHON_BUILD_REFERENCE_FASTA.out.fasta
+
 
     // 
     // MODULE: MULTIQC
     // 
-    workflow_summary = multiqc_summary(workflow, params)
-    ch_workflow_summary = Channel.value(workflow_summary)
-    ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
+    // workflow_summary = multiqc_summary(workflow, params)
+    // ch_workflow_summary = Channel.value(workflow_summary)
+    // ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
     // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
     // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
 
