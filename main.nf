@@ -1,7 +1,7 @@
 #!/usr/bin/env nextflow
 
 nextflow.enable.dsl = 2
-// nextflow.preview.recursion = true
+nextflow.preview.recursion = true
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -294,14 +294,26 @@ workflow {
     ch_top_hits_fasta = PYTHON_BUILD_REFERENCE_FASTA.out.fasta
 
     //
+    // CHANNEL: Setup for iteration
+    //
+    ch_iter_fasta = ch_top_hits_fasta
+    .map {
+        [[id: "iter_ref", iter: 1, hamming_av: 1000], it[1]]
+    }
+    ch_fastq_iter = ch_fastq
+    .map {
+        [[id: "iter_reads", iter: 1], it[1]]
+    }
+
+    //
     // SUBWORKFLOW: Iterative alignment
     //
-    ITERATIVE_ALIGMENT (
-        ch_top_hits_fasta,
-        ch_fastq,
+    ITERATIVE_ALIGMENT.recurse (
+        ch_iter_fasta,
+        ch_fastq_iter,
         "-T10 -k 19 -B 4 -O 6",
         [[], []]
-    )
+    ).until{ it -> it[0].iter == 5 }
     ch_versions = ch_versions.mix(ITERATIVE_ALIGMENT.out.versions)
 
 

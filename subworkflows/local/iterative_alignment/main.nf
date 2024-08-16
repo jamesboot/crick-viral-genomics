@@ -9,7 +9,7 @@ workflow ITERATIVE_ALIGMENT {
     ref       // [val(meta), path(fasta)]
     reads     // [val(meta), path(fastq)]
     bwa_args  // val
-    bam       // [val(meta), path(fasta)]
+    bam       // [val(meta), path(bam)]
 
     main:
 
