@@ -103,6 +103,7 @@ include { MULTIQC                              } from './modules/nf-core/multiqc
 */
 
 include { BAM_SORT_STATS_SAMTOOLS as BAM_HOST_SORT_STATS } from './subworkflows/nf-core/bam_sort_stats_samtools/main'
+include { ITERATIVE_ALIGMENT                             } from './subworkflows/local/iterative_alignment/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -291,6 +292,18 @@ workflow {
     )
     ch_versions       = ch_versions.mix(PYTHON_BUILD_REFERENCE_FASTA.out.versions)
     ch_top_hits_fasta = PYTHON_BUILD_REFERENCE_FASTA.out.fasta
+
+    //
+    // SUBWORKFLOW: Iterative alignment
+    //
+    ITERATIVE_ALIGMENT (
+        1,
+        ch_top_hits_fasta,
+        ch_fastq,
+        "-T10 -k 19 -B 4 -O 6",
+        [[], []]
+    )
+    ch_versions = ch_versions.mix(ITERATIVE_ALIGMENT.out.versions)
 
 
     // 

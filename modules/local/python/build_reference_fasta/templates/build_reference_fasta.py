@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 
-import os
 import sys
-import errno
 import argparse
 import platform
 

@@ -40,6 +40,11 @@
             "git_sha": "b7ebe95761cd389603f9cc0e0dc384c0f663815a",
             "installed_by": ["modules"]
           },
+          "samtools/consensus": {
+            "branch": "master",
+            "git_sha": "4133cae7ad6f1e9fff20cb1a26ef21b7c19adfc4",
+            "installed_by": ["modules"]
+          },
           "samtools/fastq": {
             "branch": "master",
             "git_sha": "04fbbc7c43cebc0b95d5b126f6d9fe4effa33519",
