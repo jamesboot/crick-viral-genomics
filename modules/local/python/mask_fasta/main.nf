@@ -9,6 +9,7 @@ process PYTHON_MASK_FASTA {
 
     output:
     tuple val(meta), path('*.fasta'), emit: fasta
+    tuple val(meta), path('*.tsv')  , emit: hamming
     path  "versions.yml"            , emit: versions
 
     when:
@@ -16,6 +17,6 @@ process PYTHON_MASK_FASTA {
 
     shell:
     process_name = task.process
-    output       = task.ext.output ?: 'masked.fasta'
+    prefix       = task.ext.prefix ?: "${meta.id}"
     template 'mask_fasta.py'
 }

@@ -297,7 +297,6 @@ workflow {
     // SUBWORKFLOW: Iterative alignment
     //
     ITERATIVE_ALIGMENT (
-        1,
         ch_top_hits_fasta,
         ch_fastq,
         "-T10 -k 19 -B 4 -O 6",

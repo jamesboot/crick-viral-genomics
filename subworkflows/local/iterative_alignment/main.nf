@@ -6,7 +6,6 @@ include { PYTHON_MASK_FASTA       } from '../../../modules/local/python/mask_fas
 
 workflow ITERATIVE_ALIGMENT {
     take:
-    iteration // val
     ref       // [val(meta), path(fasta)]
     reads     // [val(meta), path(fastq)]
     bwa_args  // val
@@ -26,7 +25,7 @@ workflow ITERATIVE_ALIGMENT {
     ch_bwa_index = BWA_INDEX.out.index
 
     //
-    // MODULE: Align to the reference genome
+    // MODULE: Align to the reference genome (could be a merged set of segments)
     //
     BWA_MEM (
         reads,
@@ -65,8 +64,8 @@ workflow ITERATIVE_ALIGMENT {
     )
     ch_versions = ch_versions.mix(PYTHON_MASK_FASTA.out.versions)
 
+
     emit:
-    iteration
     ref = PYTHON_MASK_FASTA.out.fasta
     reads
     bwa_args
