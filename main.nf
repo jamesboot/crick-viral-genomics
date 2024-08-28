@@ -1,7 +1,6 @@
 #!/usr/bin/env nextflow
 
 nextflow.enable.dsl = 2
-nextflow.preview.recursion = true
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -103,7 +102,6 @@ include { MULTIQC                              } from './modules/nf-core/multiqc
 */
 
 include { BAM_SORT_STATS_SAMTOOLS as BAM_HOST_SORT_STATS } from './subworkflows/nf-core/bam_sort_stats_samtools/main'
-include { ITERATIVE_ALIGMENT                             } from './subworkflows/local/iterative_alignment/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -290,32 +288,7 @@ workflow {
         ch_merged_viral_fasta,
         ch_blast
     )
-    ch_versions       = ch_versions.mix(PYTHON_BUILD_REFERENCE_FASTA.out.versions)
     ch_top_hits_fasta = PYTHON_BUILD_REFERENCE_FASTA.out.fasta
-
-    //
-    // CHANNEL: Setup for iteration
-    //
-    ch_iter_fasta = ch_top_hits_fasta
-    .map {
-        [[id: "iter_ref", iter: 1, hamming_av: 1000], it[1]]
-    }
-    ch_fastq_iter = ch_fastq
-    .map {
-        [[id: "iter_reads", iter: 1], it[1]]
-    }
-
-    //
-    // SUBWORKFLOW: Iterative alignment
-    //
-    // ITERATIVE_ALIGMENT.recurse (
-    //     ch_iter_fasta.collect(),
-    //     ch_fastq_iter.collect(),
-    // ).until{ it ->
-    //     print(it)
-    //     it.size() > 100
-    // }
-    // ch_versions = ch_versions.mix(ITERATIVE_ALIGMENT.out.versions)
 
 
     // 
