@@ -9,7 +9,7 @@ process PYTHON_BUILD_REFERENCE_FASTA {
 
     output:
     tuple val(meta), path('*.fasta'), emit: fasta
-    path  "versions.yml"         , emit: versions
+    path  "versions.yml"            , emit: versions
 
     when:
     task.ext.when == null || task.ext.when

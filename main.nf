@@ -9,9 +9,9 @@ nextflow.preview.recursion = true
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { params_summary_map } from './modules/local/util/logging/main'
-include { summary_log        } from './modules/local/util/logging/main'
-include { multiqc_summary    } from './modules/local/util/logging/main'
+include { params_summary_map   } from './modules/local/util/logging/main'
+include { summary_log          } from './modules/local/util/logging/main'
+include { multiqc_summary      } from './modules/local/util/logging/main'
 include { get_genome_attribute } from './modules/local/util/references/main'
 
 /*
@@ -308,13 +308,14 @@ workflow {
     //
     // SUBWORKFLOW: Iterative alignment
     //
-    ITERATIVE_ALIGMENT.recurse (
-        ch_iter_fasta,
-        ch_fastq_iter,
-        "-T10 -k 19 -B 4 -O 6",
-        [[], []]
-    ).until{ it -> it[0].iter == 5 }
-    ch_versions = ch_versions.mix(ITERATIVE_ALIGMENT.out.versions)
+    // ITERATIVE_ALIGMENT.recurse (
+    //     ch_iter_fasta.collect(),
+    //     ch_fastq_iter.collect(),
+    // ).until{ it ->
+    //     print(it)
+    //     it.size() > 100
+    // }
+    // ch_versions = ch_versions.mix(ITERATIVE_ALIGMENT.out.versions)
 
 
     // 
