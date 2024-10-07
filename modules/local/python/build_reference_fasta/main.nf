@@ -1,4 +1,4 @@
-process PYTHON_BUILD_REFERENCE_FASTA {
+process BUILD_REFERENCE_FASTA {
     label 'process_single'
 
     container "docker.io/thecrick/pipetech_genome_tools:latest"

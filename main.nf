@@ -92,7 +92,8 @@ include { SPADES_ASSEMBLE                      } from './modules/local/spades/as
 include { LINUX_COMMAND as MERGE_REFS          } from './modules/local/linux/command/main'
 include { BLAST_MAKEBLASTDB                    } from './modules/nf-core/blast/makeblastdb/main'
 include { BLAST_BLASTN                         } from './modules/nf-core/blast/blastn/main'
-include { PYTHON_BUILD_REFERENCE_FASTA         } from './modules/local/python/build_reference_fasta/main'
+include { BUILD_REFERENCE_FASTA                } from './modules/local/python/build_reference_fasta/main'
+include { ITERATIVE_ALIGNMENT                  } from './modules/local/python/iterative_alignment/main'
 include { MULTIQC                              } from './modules/nf-core/multiqc/main'
 
 /*
@@ -284,12 +285,19 @@ workflow {
     //
     // MODULE: Build reference fasta from top blast hits
     //
-    PYTHON_BUILD_REFERENCE_FASTA (
+    BUILD_REFERENCE_FASTA (
         ch_merged_viral_fasta,
         ch_blast
     )
-    ch_top_hits_fasta = PYTHON_BUILD_REFERENCE_FASTA.out.fasta
+    ch_top_hits_fasta = BUILD_REFERENCE_FASTA.out.fasta
 
+    //
+    // MODULE: Run iterative alignment
+    //
+    ITERATIVE_ALIGNMENT (
+        ch_fastq,
+        ch_top_hits_fasta.collect{it[1]},
+    )
 
     // 
     // MODULE: MULTIQC
