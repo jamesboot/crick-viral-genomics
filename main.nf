@@ -115,7 +115,7 @@ workflow {
     ch_host_fasta    = Channel.empty()
     ch_host_bwa      = Channel.empty()
     ch_seq_sim_refs  = Channel.empty()
-    
+
     //
     // Init optional input channels
     //
@@ -131,6 +131,16 @@ workflow {
     if (params.generate_reads) {
         ch_seq_sim_refs = Channel.from(file(params.seq_sim_ref_dir, checkIfExists: true))
     }
+
+    //
+    // MODULE: Concat the reference files into one file
+    //
+    MERGE_REFS (
+        ch_viral_fasta,
+        [],
+        true
+    )
+    ch_merged_viral_fasta = MERGE_REFS.out.file
 
     ch_fastq = Channel.empty()
     if(params.generate_reads) {
@@ -172,7 +182,7 @@ workflow {
             [it, [read1, read2]]
         }
     }
-    
+
     ch_host_bwa_index = Channel.empty()
     if(params.host_fasta) {
         //
@@ -293,52 +303,47 @@ workflow {
         ch_fastq    = SAMTOOLS_FASTQ.out.fastq
     }
 
-    //
-    // MODULE: First assembly of non-host reads
-    //
-    // SPADES_ASSEMBLE (
-    //     ch_fastq
-    // )
-    // ch_versions = ch_versions.mix(SPADES_ASSEMBLE.out.versions)
-    // ch_contigs = SPADES_ASSEMBLE.out.contigs
+    ch_viral_ref = Channel.empty()
+    if(params.assemble_ref) {
+        //
+        // MODULE: First assembly of non-host reads
+        //
+        SPADES_ASSEMBLE (
+            ch_fastq
+        )
+        // ch_versions = ch_versions.mix(SPADES_ASSEMBLE.out.versions)
+        ch_contigs = SPADES_ASSEMBLE.out.contigs
 
-    //
-    // MODULE: Concat the reference files into one file
-    //
-    // MERGE_REFS (
-    //     ch_viral_fasta,
-    //     [],
-    //     true
-    // )
-    // ch_merged_viral_fasta = MERGE_REFS.out.file
+        //
+        // MODULE: Build blastdb of viral segments
+        //
+        BLAST_MAKEBLASTDB (
+            ch_merged_viral_fasta
+        )
+        ch_versions      = ch_versions.mix(BLAST_MAKEBLASTDB.out.versions)
+        ch_viral_blastdb = BLAST_MAKEBLASTDB.out.db
 
-    //
-    // MODULE: Build blastdb of viral segments
-    //
-    // BLAST_MAKEBLASTDB (
-    //     ch_merged_viral_fasta
-    // )
-    // ch_versions      = ch_versions.mix(BLAST_MAKEBLASTDB.out.versions)1
-    // ch_viral_blastdb = BLAST_MAKEBLASTDB.out.db
+        //
+        // MODULE: Blast contigs against viral segments
+        //
+        BLAST_BLASTN (
+            ch_contigs,
+            ch_viral_blastdb.collect()
+        )
+        ch_versions = ch_versions.mix(BLAST_BLASTN.out.versions)
+        ch_blast    = BLAST_BLASTN.out.txt
 
-    //
-    // MODULE: Blast contigs against viral segments
-    //
-    // BLAST_BLASTN (
-    //     ch_contigs,
-    //     ch_viral_blastdb
-    // )
-    // ch_versions = ch_versions.mix(BLAST_BLASTN.out.versions)
-    // ch_blast    = BLAST_BLASTN.out.txt
-
-    //
-    // MODULE: Build reference fasta from top blast hits
-    //
-    // BUILD_REFERENCE_FASTA (
-    //     ch_merged_viral_fasta,
-    //     ch_blast
-    // )
-    // ch_top_hits_fasta = BUILD_REFERENCE_FASTA.out.fasta
+        //
+        // MODULE: Build reference fasta from top blast hits
+        //
+        BUILD_REFERENCE_FASTA (
+            ch_merged_viral_fasta,
+            ch_blast
+        )
+        ch_viral_ref = BUILD_REFERENCE_FASTA.out.fasta
+    } else {
+        ch_viral_ref = ch_merged_viral_fasta
+    }
 
     //
     // MODULE: Run iterative alignment
