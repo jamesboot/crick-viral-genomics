@@ -108,10 +108,6 @@ include { BAM_SORT_STATS_SAMTOOLS as BAM_HOST_SORT_STATS } from './subworkflows/
 */
 
 workflow {
-    // ***********
-    // SECTION: Init
-    // ***********
-
     ch_versions      = Channel.empty()
     ch_multiqc_files = Channel.empty()
     ch_viral_fasta   = Channel.fromPath(params.viral_fasta).toSortedList().map{[[id:"fasta"], it]}
@@ -135,10 +131,6 @@ workflow {
     if (params.generate_reads) {
         ch_seq_sim_refs = Channel.from(file(params.seq_sim_ref_dir, checkIfExists: true))
     }
-
-    // ***********
-    // SECTION: Generate reads or load samplesheet
-    // ***********
 
     ch_fastq = Channel.empty()
     if(params.generate_reads) {
@@ -180,10 +172,6 @@ workflow {
             [it, [read1, read2]]
         }
     }
-
-    // ***********
-    // SECTION: Prepare genomes
-    // ***********
     
     ch_host_bwa_index = Channel.empty()
     if(params.host_fasta) {
@@ -233,7 +221,7 @@ workflow {
     ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.fastqc_raw_zip.collect{it[1]})
     ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.trim_json.collect{it[1]})
     ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.fastqc_trim_zip.collect{it[1]})
-    ch_trim_fastq    = FASTQ_TRIM_FASTP_FASTQC.out.reads
+    ch_fastq         = FASTQ_TRIM_FASTP_FASTQC.out.reads
 
     if (params.host_fasta) {
         //
@@ -268,41 +256,41 @@ workflow {
         //
         // CHANNEL: Combine bam and bai files
         //
-        // ch_host_bam_bai = ch_host_bam
-        // .map { row -> [row[0].id, row ].flatten()}
-        // .join ( ch_host_bai.map { row -> [row[0].id, row ].flatten()} )
-        // .map { row -> [row[1], row[2], row[4]] }
+        ch_host_bam_bai = ch_host_bam
+        .map { row -> [row[0].id, row ].flatten()}
+        .join ( ch_host_bai.map { row -> [row[0].id, row ].flatten()} )
+        .map { row -> [row[1], row[2], row[4]] }
 
         //
         // MODULE: Filter for unmapped reads
         //
-        // SAMTOOLS_VIEW_HOST (
-        //     ch_host_bam_bai,
-        //     ch_host_fasta,
-        //     []
-        // )
-        // ch_versions = ch_versions.mix(SAMTOOLS_VIEW_HOST.out.versions)
-        // ch_bam = SAMTOOLS_VIEW_HOST.out.bam
+        SAMTOOLS_VIEW_HOST (
+            ch_host_bam_bai,
+            ch_host_fasta,
+            []
+        )
+        ch_versions = ch_versions.mix(SAMTOOLS_VIEW_HOST.out.versions)
+        ch_bam = SAMTOOLS_VIEW_HOST.out.bam
 
         //
         // MODULE: Sort by name
         //
-        // SAMTOOLS_SORT_VIRAL (
-        //     ch_bam,
-        //     [[],[]]
-        // )
-        // ch_versions = ch_versions.mix(SAMTOOLS_VIEW_HOST.out.versions)
-        // ch_bam = SAMTOOLS_SORT_VIRAL.out.bam
+        SAMTOOLS_SORT_VIRAL (
+            ch_bam,
+            [[],[]]
+        )
+        ch_versions = ch_versions.mix(SAMTOOLS_VIEW_HOST.out.versions)
+        ch_bam = SAMTOOLS_SORT_VIRAL.out.bam
 
         //
         // MODULE: Convert to fastq
         //
-        // SAMTOOLS_FASTQ (
-        //     ch_bam,
-        //     false
-        // )
-        // ch_versions = ch_versions.mix(SAMTOOLS_FASTQ.out.versions)
-        // ch_fastq = SAMTOOLS_FASTQ.out.fastq
+        SAMTOOLS_FASTQ (
+            ch_bam,
+            false
+        )
+        ch_versions = ch_versions.mix(SAMTOOLS_FASTQ.out.versions)
+        ch_fastq    = SAMTOOLS_FASTQ.out.fastq
     }
 
     //

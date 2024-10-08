@@ -47,33 +47,12 @@ remove_sections:
   - fastqc_trimmed_fastqc_status_checks
   - samtools_host_samtools-idxstats
 
+fn_clean_trim:
+  - ".host"
+  - ".host.stats"
 
-
-
-
-
-
-
-# report_section_order:
-#   software_versions:
-#     order: -1000
-#   "pipelines-technology-nanopore_demux-summary":
-#     order: -1001
-
-# export_plots: true
-
-# run_modules:
-#   - custom_content
-#   - fastqc
-#   - samtools
-
-# module_order:
-#   - fastqc
-#   - samtools:
-#     name: "Host Genome"
-#     info: "Host genonme alignment information"
-#     path_filters:
-#       - "*/*.host.stats"
-#       - "*/*.host.idxstats"
-#       - "*/*.host.flagstat"
-#   - custom_content
+extra_fn_clean_exts:
+  - "_trimmed_1"
+  - "_trimmed_2"
+  - "_raw_1"
+  - "_raw_2"
