@@ -19,7 +19,8 @@ include { get_genome_attribute } from './modules/local/util/references/main'
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-ch_multiqc_config = file("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
+ch_multiqc_config = file("$projectDir/assets/multiqc_illumina_config.yml", checkIfExists: true)
+ch_multiqc_logo = file("$projectDir/assets/The_Francis_Crick_Institute_logo.png", checkIfExists: true)
 ch_seq_sim_config = file(params.seq_sim_config, checkIfExists: true)
 
 /*
@@ -78,7 +79,6 @@ for (param in check_param_list) { if (param) { file(param, checkIfExists: true) 
 include { SEQ_SIMULATOR                        } from './modules/local/seq_simulator/main'
 include { SAMPLESHEET_CHECK                    } from './modules/local/samplesheet/check/main'
 include { GUNZIP as GUNZIP_FASTA               } from './modules/nf-core/gunzip/main'
-include { FASTQC                               } from './modules/nf-core/fastqc/main'
 include { BWA_INDEX                            } from './modules/nf-core/bwa/index/main'
 include { BWA_MEM as BWA_ALIGN_HOST            } from './modules/nf-core/bwa/mem/main'
 include { SAMTOOLS_VIEW as SAMTOOLS_VIEW_HOST  } from './modules/nf-core/samtools/view/main'
@@ -98,6 +98,7 @@ include { MULTIQC                              } from './modules/nf-core/multiqc
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
+include { FASTQ_TRIM_FASTP_FASTQC                        } from './subworkflows/nf-core/fastq_trim_fastp_fastqc/main'
 include { BAM_SORT_STATS_SAMTOOLS as BAM_HOST_SORT_STATS } from './subworkflows/nf-core/bam_sort_stats_samtools/main'
 
 /*
@@ -107,9 +108,10 @@ include { BAM_SORT_STATS_SAMTOOLS as BAM_HOST_SORT_STATS } from './subworkflows/
 */
 
 workflow {
-    //
-    // INIT
-    //
+    // ***********
+    // SECTION: Init
+    // ***********
+
     ch_versions      = Channel.empty()
     ch_multiqc_files = Channel.empty()
     ch_viral_fasta   = Channel.fromPath(params.viral_fasta).toSortedList().map{[[id:"fasta"], it]}
@@ -134,6 +136,10 @@ workflow {
         ch_seq_sim_refs = Channel.from(file(params.seq_sim_ref_dir, checkIfExists: true))
     }
 
+    // ***********
+    // SECTION: Generate reads or load samplesheet
+    // ***********
+
     ch_fastq = Channel.empty()
     if(params.generate_reads) {
         //
@@ -154,116 +160,150 @@ workflow {
         SAMPLESHEET_CHECK (
             ch_samplesheet
         )
-        SAMPLESHEET_CHECK.out.csv | view
+
+        //
+        // CHANNEL: Construct meta and fastq channel
+        //
+        ch_fastq = SAMPLESHEET_CHECK.out.csv
+        .splitCsv (header:true, sep:",")
+        .map {
+            it.single_end = true
+            def read1 = file(it.read1, checkIfExists: true)
+            it.remove("read1")
+            def read2 = null
+            if(it.read2) {
+                read2 = file(it.read2, checkIfExists: true)
+                it.remove("read2")
+                it.single_end = false
+            }
+
+            [it, [read1, read2]]
+        }
     }
 
-    // ch_host_bwa_index = Channel.empty()
-    //
-    // MODULE: Uncompress genome fasta file if required
-    //
-    // if (ch_host_fasta.toString().endsWith(".gz")) {
-    //     ch_host_fasta = GUNZIP_FASTA ( [ [id:ch_host_fasta.baseName], ch_host_fasta ] ).gunzip
-    //     ch_versions = ch_versions.mix(GUNZIP_FASTA.out.versions)
-    // }
-    // else {
-    //     ch_host_fasta = Channel.from( [ [ [id:ch_host_fasta.baseName], ch_host_fasta ] ] )
-    // }
+    // ***********
+    // SECTION: Prepare genomes
+    // ***********
+    
+    ch_host_bwa_index = Channel.empty()
+    if(params.host_fasta) {
+        //
+        // MODULE: Uncompress host genome fasta file if required
+        //
+        if (ch_host_fasta.toString().endsWith(".gz")) {
+            ch_host_fasta = GUNZIP_FASTA ( [ [id:ch_host_fasta.baseName], ch_host_fasta ] ).gunzip
+            ch_versions = ch_versions.mix(GUNZIP_FASTA.out.versions)
+        }
+        else {
+            ch_host_fasta = Channel.from( [ [ [id:ch_host_fasta.baseName], ch_host_fasta ] ] )
+        }
+
+        //
+        // MODULES: Uncompress BWA index or generate if required
+        //
+        if (params.host_bwa) {
+            if (ch_host_bwa_index.toString().endsWith(".tar.gz")) {
+                UNTAR_BWA ( [[:], ch_host_bwa_index] )
+                ch_versions       = ch_versions.mix( UNTAR_BWA.out.versions )
+                ch_host_bwa_index = UNTAR_BWA.out.untar
+
+            } else {
+                ch_host_bwa_index = Channel.of([[:], ch_host_bwa_index])
+            }
+        }
+        else {
+            BWA_INDEX ( ch_host_fasta )
+            ch_versions       = ch_versions.mix(BWA_INDEX.out.versions)
+            ch_host_bwa_index = BWA_INDEX.out.index
+        }
+    }
 
     //
-    // MODULES: Uncompress BWA index or generate if required
+    // SUBWORKFLOW: Fastqc and trimming
     //
-    // if (params.host_bwa) {
-    //     if (ch_host_bwa_index.toString().endsWith(".tar.gz")) {
-    //         UNTAR_BWA ( [[:], ch_host_bwa_index] )
-    //         ch_versions       = ch_versions.mix( UNTAR_BWA.out.versions )
-    //         ch_host_bwa_index = UNTAR_BWA.out.untar
+    FASTQ_TRIM_FASTP_FASTQC (
+        ch_fastq, // ch_reads
+        [],       // ch_adapter_fasta
+        false,    // val_save_trimmed_fail
+        false,    // val_save_merged
+        false,    // val_skip_fastp
+        false,    // val_skip_fastqc
+    )
+    ch_versions      = ch_versions.mix(FASTQ_TRIM_FASTP_FASTQC.out.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.fastqc_raw_zip.collect{it[1]})
+    ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.trim_json.collect{it[1]})
+    ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.fastqc_trim_zip.collect{it[1]})
+    ch_trim_fastq    = FASTQ_TRIM_FASTP_FASTQC.out.reads
 
-    //     } else {
-    //         ch_host_bwa_index = Channel.of([[:], ch_host_bwa_index])
-    //     }
-    // }
-    // else {
-    //     BWA_INDEX ( ch_host_fasta )
-    //     ch_versions       = ch_versions.mix(BWA_INDEX.out.versions)
-    //     ch_host_bwa_index = BWA_INDEX.out.index
-    // }
+    if (params.host_fasta) {
+        //
+        // MODULE: Map raw reads to host
+        //
+        BWA_ALIGN_HOST (
+            ch_fastq,
+            ch_host_bwa_index,
+            ch_host_fasta,
+            "view"
+        )
+        ch_versions = ch_versions.mix(BWA_ALIGN_HOST.out.versions)
+        ch_host_bam = BWA_ALIGN_HOST.out.bam
 
-    //
-    // MODULE: Fastqc on raw reads
-    //
-    // FASTQC (
-    //     ch_fastq
-    // )
-    // ch_versions      = ch_versions.mix(FASTQC.out.versions)
-    // ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]})
+        //
+        // SUBWORKFLOW: Sort, index BAM file and run samtools stats, flagstat and idxstats
+        //
+        BAM_HOST_SORT_STATS (
+            ch_host_bam,
+            ch_host_fasta
+        )
+        ch_versions           = ch_versions.mix(BAM_HOST_SORT_STATS.out.versions)
+        ch_host_bam           = BAM_HOST_SORT_STATS.out.bam
+        ch_host_bai           = BAM_HOST_SORT_STATS.out.bai
+        ch_host_bam_stats     = BAM_HOST_SORT_STATS.out.stats
+        ch_host_bams_flagstat = BAM_HOST_SORT_STATS.out.flagstat
+        ch_host_bam_idxstats  = BAM_HOST_SORT_STATS.out.idxstats
+        ch_multiqc_files      = ch_multiqc_files.mix(ch_host_bam_stats.collect{it[1]})
+        ch_multiqc_files      = ch_multiqc_files.mix(ch_host_bams_flagstat.collect{it[1]})
+        ch_multiqc_files      = ch_multiqc_files.mix(ch_host_bam_idxstats.collect{it[1]})
 
-    //
-    // MODULE: Map raw reads to host
-    //
-    // BWA_ALIGN_HOST (
-    //     ch_fastq,
-    //     ch_host_bwa_index,
-    //     ch_host_fasta,
-    //     "view"
-    // )
-    // ch_versions = ch_versions.mix(BWA_ALIGN_HOST.out.versions)
-    // ch_host_bam = BWA_ALIGN_HOST.out.bam
+        //
+        // CHANNEL: Combine bam and bai files
+        //
+        // ch_host_bam_bai = ch_host_bam
+        // .map { row -> [row[0].id, row ].flatten()}
+        // .join ( ch_host_bai.map { row -> [row[0].id, row ].flatten()} )
+        // .map { row -> [row[1], row[2], row[4]] }
 
-    //
-    // SUBWORKFLOW: Sort, index BAM file and run samtools stats, flagstat and idxstats
-    //
-    // BAM_HOST_SORT_STATS (
-    //     ch_host_bam,
-    //     ch_host_fasta
-    // )
-    // ch_versions           = ch_versions.mix(BAM_HOST_SORT_STATS.out.versions)
-    // ch_host_bam           = BAM_HOST_SORT_STATS.out.bam
-    // ch_host_bai           = BAM_HOST_SORT_STATS.out.bai
-    // ch_host_bam_stats     = BAM_HOST_SORT_STATS.out.stats
-    // ch_host_bams_flagstat = BAM_HOST_SORT_STATS.out.flagstat
-    // ch_host_bam_idxstats  = BAM_HOST_SORT_STATS.out.idxstats
-    // ch_multiqc_files      = ch_multiqc_files.mix(ch_host_bam_stats.collect{it[1]})
-    // ch_multiqc_files      = ch_multiqc_files.mix(ch_host_bams_flagstat.collect{it[1]})
-    // ch_multiqc_files      = ch_multiqc_files.mix(ch_host_bam_idxstats.collect{it[1]})
+        //
+        // MODULE: Filter for unmapped reads
+        //
+        // SAMTOOLS_VIEW_HOST (
+        //     ch_host_bam_bai,
+        //     ch_host_fasta,
+        //     []
+        // )
+        // ch_versions = ch_versions.mix(SAMTOOLS_VIEW_HOST.out.versions)
+        // ch_bam = SAMTOOLS_VIEW_HOST.out.bam
 
-    //
-    // CHANNEL: Combine bam and bai files
-    //
-    // ch_host_bam_bai = ch_host_bam
-    // .map { row -> [row[0].id, row ].flatten()}
-    // .join ( ch_host_bai.map { row -> [row[0].id, row ].flatten()} )
-    // .map { row -> [row[1], row[2], row[4]] }
+        //
+        // MODULE: Sort by name
+        //
+        // SAMTOOLS_SORT_VIRAL (
+        //     ch_bam,
+        //     [[],[]]
+        // )
+        // ch_versions = ch_versions.mix(SAMTOOLS_VIEW_HOST.out.versions)
+        // ch_bam = SAMTOOLS_SORT_VIRAL.out.bam
 
-    //
-    // MODULE: Filter for unmapped reads
-    //
-    // SAMTOOLS_VIEW_HOST (
-    //     ch_host_bam_bai,
-    //     ch_host_fasta,
-    //     []
-    // )
-    // ch_versions = ch_versions.mix(SAMTOOLS_VIEW_HOST.out.versions)
-    // ch_bam = SAMTOOLS_VIEW_HOST.out.bam
-
-    //
-    // MODULE: Sort by name
-    //
-    // SAMTOOLS_SORT_VIRAL (
-    //     ch_bam,
-    //     [[],[]]
-    // )
-    // ch_versions = ch_versions.mix(SAMTOOLS_VIEW_HOST.out.versions)
-    // ch_bam = SAMTOOLS_SORT_VIRAL.out.bam
-
-    //
-    // MODULE: Convert to fastq
-    //
-    // SAMTOOLS_FASTQ (
-    //     ch_bam,
-    //     false
-    // )
-    // ch_versions = ch_versions.mix(SAMTOOLS_FASTQ.out.versions)
-    // ch_fastq = SAMTOOLS_FASTQ.out.fastq
+        //
+        // MODULE: Convert to fastq
+        //
+        // SAMTOOLS_FASTQ (
+        //     ch_bam,
+        //     false
+        // )
+        // ch_versions = ch_versions.mix(SAMTOOLS_FASTQ.out.versions)
+        // ch_fastq = SAMTOOLS_FASTQ.out.fastq
+    }
 
     //
     // MODULE: First assembly of non-host reads
@@ -290,7 +330,7 @@ workflow {
     // BLAST_MAKEBLASTDB (
     //     ch_merged_viral_fasta
     // )
-    // ch_versions      = ch_versions.mix(BLAST_MAKEBLASTDB.out.versions)
+    // ch_versions      = ch_versions.mix(BLAST_MAKEBLASTDB.out.versions)1
     // ch_viral_blastdb = BLAST_MAKEBLASTDB.out.db
 
     //
@@ -323,18 +363,18 @@ workflow {
     // 
     // MODULE: MULTIQC
     // 
-    // workflow_summary = multiqc_summary(workflow, params)
-    // ch_workflow_summary = Channel.value(workflow_summary)
-    // ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
+    workflow_summary = multiqc_summary(workflow, params)
+    ch_workflow_summary = Channel.value(workflow_summary)
+    ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
     // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
     // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
 
-    // MULTIQC (
-    //     ch_multiqc_files.collect(),
-    //     ch_multiqc_config,
-    //     [],
-    //     []
-    // )
+    MULTIQC (
+        ch_multiqc_files.collect(),
+        ch_multiqc_config,
+        [],
+        ch_multiqc_logo
+    )
 }
 
 /*
