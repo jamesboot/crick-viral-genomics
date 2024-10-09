@@ -407,9 +407,9 @@ workflow {
     //
     // MODULE: Track software versions
     //
-    // CUSTOM_DUMPSOFTWAREVERSIONS (
-    //     ch_versions.collect()
-    // )
+    CUSTOM_DUMPSOFTWAREVERSIONS (
+        ch_versions.unique().collectFile()
+    )
 
     //
     // MODULE: MULTIQC
@@ -420,12 +420,12 @@ workflow {
     ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
     ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
 
-    // MULTIQC (
-    //     ch_multiqc_files.collect(),
-    //     ch_multiqc_config,
-    //     [],
-    //     ch_multiqc_logo
-    // )
+    MULTIQC (
+        ch_multiqc_files.collect(),
+        ch_multiqc_config,
+        [],
+        ch_multiqc_logo
+    )
 }
 
 /*
