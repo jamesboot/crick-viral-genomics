@@ -4,8 +4,7 @@ process ITERATIVE_ALIGNMENT {
     container "docker.io/thecrick/pipetech_iterative_alignment:latest"
 
     input:
-    tuple val(meta), path(reads)
-    path ref
+    tuple val(meta), path(reads), path(ref)
 
     output:
     tuple val(meta), path("${meta.id}/*.bam")  , emit: bam

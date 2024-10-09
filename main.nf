@@ -90,6 +90,7 @@ include { BLAST_MAKEBLASTDB                    } from './modules/nf-core/blast/m
 include { BLAST_BLASTN                         } from './modules/nf-core/blast/blastn/main'
 include { BUILD_REFERENCE_FASTA                } from './modules/local/build_reference_fasta/main'
 include { ITERATIVE_ALIGNMENT                  } from './modules/local/iterative_alignment/main'
+include { CUSTOM_DUMPSOFTWAREVERSIONS          } from './modules/local/custom_dumpsoftwareversions.nf'
 include { MULTIQC                              } from './modules/nf-core/multiqc/main'
 
 /*
@@ -100,6 +101,7 @@ include { MULTIQC                              } from './modules/nf-core/multiqc
 
 include { FASTQ_TRIM_FASTP_FASTQC                        } from './subworkflows/nf-core/fastq_trim_fastp_fastqc/main'
 include { BAM_SORT_STATS_SAMTOOLS as BAM_HOST_SORT_STATS } from './subworkflows/nf-core/bam_sort_stats_samtools/main'
+include { BAM_STATS_SAMTOOLS as BAM_VIRAL_SORT_STATS     } from './subworkflows/nf-core/bam_stats_samtools/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -304,6 +306,7 @@ workflow {
     }
 
     ch_viral_ref = Channel.empty()
+    ch_fastq_ref = Channel.empty()
     if(params.assemble_ref) {
         //
         // MODULE: First assembly of non-host reads
@@ -341,6 +344,15 @@ workflow {
             ch_blast
         )
         ch_viral_ref = BUILD_REFERENCE_FASTA.out.fasta
+
+        //
+        // CHANNEL: Join ref to reads
+        //
+        ch_fastq_ref = ch_fastq
+        .map { [it[0].id, it ]}
+        .join ( ch_viral_ref.map { [it[1].simpleName, it[1]] })
+        .map{ [it[1][0], it[1][1], it[2]] }
+
     } else {
         ch_viral_ref = ch_merged_viral_fasta
     }
@@ -348,19 +360,49 @@ workflow {
     //
     // MODULE: Run iterative alignment
     //
-    // ITERATIVE_ALIGNMENT (
-    //     ch_fastq,
-    //     ch_top_hits_fasta.collect{it[1]},
-    // )
+    ITERATIVE_ALIGNMENT (
+        ch_fastq_ref
+    )
+    ch_bam           = ITERATIVE_ALIGNMENT.out.bam
+    ch_bai           = ITERATIVE_ALIGNMENT.out.bai
+    ch_consensus     = ITERATIVE_ALIGNMENT.out.fasta
+    ch_align_metrics = ITERATIVE_ALIGNMENT.out.metrics
 
-    // 
+    //
+    // CHANNEL: Join bam to bai
+    //
+    ch_bam_bai = ch_bam
+    .map { [it[0].id, it ]}
+    .join ( ch_bai.map { [it[0].id, it[1]] })
+    .map{ [it[1][0], it[1][1], it[2]] }
+
+    //
+    // SUBWORKFLOW: Calculate final alignment stats
+    //
+    BAM_VIRAL_SORT_STATS (
+        ch_bam_bai,
+        ch_viral_ref
+    )
+    ch_versions      = ch_versions.mix(BAM_VIRAL_SORT_STATS.out.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.stats.collect{it[1]})
+    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]})
+    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
+
+    //
+    // MODULE: Track software versions
+    //
+    CUSTOM_DUMPSOFTWAREVERSIONS (
+        ch_versions
+    )
+
+    //
     // MODULE: MULTIQC
-    // 
+    //
     workflow_summary = multiqc_summary(workflow, params)
     ch_workflow_summary = Channel.value(workflow_summary)
     ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
-    // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
-    // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
+    ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
+    ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
 
     MULTIQC (
         ch_multiqc_files.collect(),

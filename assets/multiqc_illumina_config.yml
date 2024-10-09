@@ -37,9 +37,15 @@ module_order:
   - samtools:
       name: "Host Genome Alignment Stats"
       anchor: "samtools_host"
-      info: "Host genome alignment stats"
+      info: ""
       path_filters:
         - "*host*"
+  - samtools:
+      name: "Viral Genome Alignment Stats"
+      anchor: "samtools_viral"
+      info: ""
+      path_filters:
+        - "*viral*"
   - custom_content
 
 remove_sections:
@@ -50,6 +56,8 @@ remove_sections:
 fn_clean_trim:
   - ".host"
   - ".host.stats"
+  - ".viral"
+  - ".viral.stats"
 
 extra_fn_clean_exts:
   - "_trimmed_1"
