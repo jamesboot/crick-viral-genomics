@@ -40,10 +40,25 @@
             "git_sha": "a7231cbccb86535529e33859e05d19ac93f3ea04",
             "installed_by": ["modules"]
           },
+          "ivar/trim": {
+            "branch": "master",
+            "git_sha": "666652151335353eef2fcd58880bcef5bc2928e1",
+            "installed_by": ["modules"]
+          },
+          "ivar/variants": {
+            "branch": "master",
+            "git_sha": "666652151335353eef2fcd58880bcef5bc2928e1",
+            "installed_by": ["modules"]
+          },
           "multiqc": {
             "branch": "master",
             "git_sha": "b7ebe95761cd389603f9cc0e0dc384c0f663815a",
             "installed_by": ["modules"]
+          },
+          "picard/markduplicates": {
+            "branch": "master",
+            "git_sha": "666652151335353eef2fcd58880bcef5bc2928e1",
+            "installed_by": ["bam_markduplicates_picard"]
           },
           "samtools/consensus": {
             "branch": "master",
@@ -68,7 +83,10 @@
           "samtools/index": {
             "branch": "master",
             "git_sha": "04fbbc7c43cebc0b95d5b126f6d9fe4effa33519",
-            "installed_by": ["bam_sort_stats_samtools"]
+            "installed_by": [
+              "bam_markduplicates_picard",
+              "bam_sort_stats_samtools"
+            ]
           },
           "samtools/sort": {
             "branch": "master",
@@ -94,6 +112,11 @@
       },
       "subworkflows": {
         "nf-core": {
+          "bam_markduplicates_picard": {
+            "branch": "master",
+            "git_sha": "763d4b5c05ffda3ac1ac969dc67f7458cfb2eb1d",
+            "installed_by": ["subworkflows"]
+          },
           "bam_sort_stats_samtools": {
             "branch": "master",
             "git_sha": "0eacd714effe5aac1c1de26593873960b3346cab",
@@ -102,7 +125,10 @@
           "bam_stats_samtools": {
             "branch": "master",
             "git_sha": "0eacd714effe5aac1c1de26593873960b3346cab",
-            "installed_by": ["bam_sort_stats_samtools"]
+            "installed_by": [
+              "bam_markduplicates_picard",
+              "bam_sort_stats_samtools"
+            ]
           },
           "fastq_trim_fastp_fastqc": {
             "branch": "master",

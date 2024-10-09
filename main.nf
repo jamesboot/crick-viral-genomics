@@ -90,6 +90,7 @@ include { BLAST_MAKEBLASTDB                    } from './modules/nf-core/blast/m
 include { BLAST_BLASTN                         } from './modules/nf-core/blast/blastn/main'
 include { BUILD_REFERENCE_FASTA                } from './modules/local/build_reference_fasta/main'
 include { ITERATIVE_ALIGNMENT                  } from './modules/local/iterative_alignment/main'
+include { IVAR_TRIM                            } from './modules/nf-core/ivar/trim/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS          } from './modules/local/custom_dumpsoftwareversions.nf'
 include { MULTIQC                              } from './modules/nf-core/multiqc/main'
 
@@ -389,11 +390,26 @@ workflow {
     ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
 
     //
+    // MODULE: Run ivar trim
+    //
+    // IVAR_TRIM (
+
+    // )
+    // ch_versions = ch_versions.mix(IVAR_TRIM.out.versions)
+
+    // Picard mark dups
+
+    // Variant calling
+
+    // .... what next?
+
+
+    //
     // MODULE: Track software versions
     //
-    CUSTOM_DUMPSOFTWAREVERSIONS (
-        ch_versions
-    )
+    // CUSTOM_DUMPSOFTWAREVERSIONS (
+    //     ch_versions.collect()
+    // )
 
     //
     // MODULE: MULTIQC
@@ -404,12 +420,12 @@ workflow {
     ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
     ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
 
-    MULTIQC (
-        ch_multiqc_files.collect(),
-        ch_multiqc_config,
-        [],
-        ch_multiqc_logo
-    )
+    // MULTIQC (
+    //     ch_multiqc_files.collect(),
+    //     ch_multiqc_config,
+    //     [],
+    //     ch_multiqc_logo
+    // )
 }
 
 /*
