@@ -29,8 +29,14 @@ ch_seq_sim_config = file(params.seq_sim_config, checkIfExists: true)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-params.host_fasta = get_genome_attribute(params, 'fasta')
-params.host_bwa   = get_genome_attribute(params, 'bwa'  )
+def host_fasta = get_genome_attribute(params, 'fasta')
+def host_bwa   = get_genome_attribute(params, 'bwa'  )
+if(params.host_fasta) {
+    host_fasta = params.host_fasta
+}
+if(params.host_bwa) {
+    host_bwa = params.host_bwa
+}
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -91,6 +97,9 @@ include { BLAST_BLASTN                         } from './modules/nf-core/blast/b
 include { BUILD_REFERENCE_FASTA                } from './modules/local/build_reference_fasta/main'
 include { ITERATIVE_ALIGNMENT                  } from './modules/local/iterative_alignment/main'
 include { IVAR_TRIM                            } from './modules/nf-core/ivar/trim/main'
+include { SAMTOOLS_FAIDX                       } from './modules/nf-core/samtools/faidx/main'
+include { PICARD_MARKDUPLICATES                } from './modules/nf-core/picard/markduplicates/main'
+include { LOFREQ_CALL                          } from './modules/local/lofreq/call/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS          } from './modules/local/custom_dumpsoftwareversions.nf'
 include { MULTIQC                              } from './modules/nf-core/multiqc/main'
 
@@ -100,9 +109,9 @@ include { MULTIQC                              } from './modules/nf-core/multiqc
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { FASTQ_TRIM_FASTP_FASTQC                        } from './subworkflows/nf-core/fastq_trim_fastp_fastqc/main'
-include { BAM_SORT_STATS_SAMTOOLS as BAM_HOST_SORT_STATS } from './subworkflows/nf-core/bam_sort_stats_samtools/main'
-include { BAM_STATS_SAMTOOLS as BAM_VIRAL_SORT_STATS     } from './subworkflows/nf-core/bam_stats_samtools/main'
+include { FASTQ_TRIM_FASTP_FASTQC                         } from './subworkflows/nf-core/fastq_trim_fastp_fastqc/main'
+include { BAM_SORT_STATS_SAMTOOLS as BAM_HOST_SORT_STATS  } from './subworkflows/nf-core/bam_sort_stats_samtools/main'
+include { BAM_SORT_STATS_SAMTOOLS as BAM_VIRAL_SORT_STATS } from './subworkflows/nf-core/bam_sort_stats_samtools/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -125,11 +134,11 @@ workflow {
     if(params.sample_sheet) {
         ch_samplesheet = file(params.sample_sheet, checkIfExists: true)
     }
-    if(params.host_fasta) {
-        ch_host_fasta = file(params.host_fasta, checkIfExists: true)
+    if(host_fasta) {
+        ch_host_fasta = file(host_fasta, checkIfExists: true)
     }
-    if(params.host_bwa) {
-        ch_host_bwa = file(params.host_bwa, checkIfExists: true)
+    if(host_bwa) {
+        ch_host_bwa = file(host_bwa, checkIfExists: true)
     }
     if (params.generate_reads) {
         ch_seq_sim_refs = Channel.from(file(params.seq_sim_ref_dir, checkIfExists: true))
@@ -187,7 +196,7 @@ workflow {
     }
 
     ch_host_bwa_index = Channel.empty()
-    if(params.host_fasta) {
+    if(host_fasta) {
         //
         // MODULE: Uncompress host genome fasta file if required
         //
@@ -202,7 +211,7 @@ workflow {
         //
         // MODULES: Uncompress BWA index or generate if required
         //
-        if (params.host_bwa) {
+        if (host_bwa) {
             if (ch_host_bwa_index.toString().endsWith(".tar.gz")) {
                 UNTAR_BWA ( [[:], ch_host_bwa_index] )
                 ch_versions       = ch_versions.mix( UNTAR_BWA.out.versions )
@@ -357,6 +366,23 @@ workflow {
     } else {
         ch_viral_ref = ch_merged_viral_fasta
     }
+    //
+    // MODULE: Index ref
+    //
+    SAMTOOLS_FAIDX (
+        ch_viral_ref,
+        [[],[]]
+    )
+    ch_versions      = ch_versions.mix(SAMTOOLS_FAIDX.out.versions)
+    ch_viral_ref_fai = SAMTOOLS_FAIDX.out.fai
+
+    //
+    // CHANNEL: Join ref to fai
+    //
+    ch_viral_ref_fasta_fai = ch_viral_ref
+    .map { [it[0].id, it ]}
+    .join ( ch_viral_ref_fai.map { [it[0].id, it[1]] })
+    .map{ [it[1][0], it[1][1], it[2]] }
 
     //
     // MODULE: Run iterative alignment
@@ -370,6 +396,32 @@ workflow {
     ch_align_metrics = ITERATIVE_ALIGNMENT.out.metrics
 
     //
+    // MODULE: Mark duplicates
+    //
+    PICARD_MARKDUPLICATES (
+        ch_bam,
+        [[],[]],
+        [[],[]]
+    )
+    ch_versions      = ch_versions.mix(PICARD_MARKDUPLICATES.out.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(PICARD_MARKDUPLICATES.out.metrics.collect{it[1]})
+    ch_bam           = PICARD_MARKDUPLICATES.out.bam
+
+    //
+    // SUBWORKFLOW: Sort, index BAM file and run samtools stats, flagstat and idxstats
+    //
+    BAM_VIRAL_SORT_STATS (
+        ch_bam,
+        ch_viral_ref
+    )
+    ch_versions      = ch_versions.mix(BAM_VIRAL_SORT_STATS.out.versions)
+    ch_bam           = BAM_VIRAL_SORT_STATS.out.bam
+    ch_bai           = BAM_VIRAL_SORT_STATS.out.bai
+    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.stats.collect{it[1]})
+    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]})
+    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
+
+    //
     // CHANNEL: Join bam to bai
     //
     ch_bam_bai = ch_bam
@@ -377,18 +429,7 @@ workflow {
     .join ( ch_bai.map { [it[0].id, it[1]] })
     .map{ [it[1][0], it[1][1], it[2]] }
 
-    //
-    // SUBWORKFLOW: Calculate final alignment stats
-    //
-    BAM_VIRAL_SORT_STATS (
-        ch_bam_bai,
-        ch_viral_ref
-    )
-    ch_versions      = ch_versions.mix(BAM_VIRAL_SORT_STATS.out.versions)
-    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.stats.collect{it[1]})
-    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]})
-    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
-
+    // blast primer seqs against the reference
     //
     // MODULE: Run ivar trim
     //
@@ -397,12 +438,13 @@ workflow {
     // )
     // ch_versions = ch_versions.mix(IVAR_TRIM.out.versions)
 
-    // Picard mark dups
-
-    // Variant calling
-
-    // .... what next?
-
+    //
+    // MODULE: Call variants
+    //
+    LOFREQ_CALL (
+        ch_bam_bai,
+        ch_viral_ref_fasta_fai
+    )
 
     //
     // MODULE: Track software versions

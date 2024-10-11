@@ -65,6 +65,11 @@
             "git_sha": "4133cae7ad6f1e9fff20cb1a26ef21b7c19adfc4",
             "installed_by": ["modules"]
           },
+          "samtools/faidx": {
+            "branch": "master",
+            "git_sha": "b13f07be4c508d6ff6312d354d09f2493243e208",
+            "installed_by": ["modules"]
+          },
           "samtools/fastq": {
             "branch": "master",
             "git_sha": "04fbbc7c43cebc0b95d5b126f6d9fe4effa33519",

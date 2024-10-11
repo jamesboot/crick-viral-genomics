@@ -13,6 +13,7 @@
 .nextflow*
 work/
 results/
+_saved_results/
 extra_data/
 testing/
 testing*
