@@ -100,6 +100,7 @@ include { IVAR_TRIM                            } from './modules/nf-core/ivar/tr
 include { SAMTOOLS_FAIDX                       } from './modules/nf-core/samtools/faidx/main'
 include { PICARD_MARKDUPLICATES                } from './modules/nf-core/picard/markduplicates/main'
 include { LOFREQ_CALL                          } from './modules/local/lofreq/call/main'
+include { MOSDEPTH                             } from './modules/nf-core/mosdepth/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS          } from './modules/local/custom_dumpsoftwareversions.nf'
 include { MULTIQC                              } from './modules/nf-core/multiqc/main'
 
@@ -447,6 +448,29 @@ workflow {
         ch_bam_bai,
         ch_viral_ref_fasta_fai
     )
+
+    //
+    // MODULE: Genome-wide coverage
+    //
+    MOSDEPTH (
+        ch_bam_bai.map{[it[0], it[1], it[2], []]},
+        ch_viral_ref
+    )
+    ch_versions      = ch_versions.mix(MOSDEPTH.out.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]})
+
+    // TODO
+    //
+    // CHANNEL: Collect topic versions
+    //
+    // ch_topic_versions = Channel.topic('versions') 
+//     | unique()
+//     | map { process, name, version ->
+//       """\
+//       ${process.tokenize(':').last()}:
+//         ${name}: ${version}
+//       """.stripIndent()
+//     
 
     //
     // MODULE: Track software versions

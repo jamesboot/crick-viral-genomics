@@ -20,6 +20,7 @@ run_modules:
   - fastp
   - samtools
   - picard
+  - mosdepth
 
 module_order:
   - fastqc:
@@ -49,7 +50,9 @@ module_order:
         - "*viral*"
   - picard:
       name: "Duplicates"
-      anchor: "picard_dups"
+      info: ""
+  - mosdepth:
+      name: "Genome Depth"
       info: ""
   - custom_content
 
