@@ -1,9 +1,10 @@
 file_dist: {
-  H1N1pdm_HA: 1.0,
-  H1N1pdm_NA: 1.0,
+  H1N1pdm_HA: 0.1,
+  A_California_07_2009_H1N1_HA: 0.9,
   H1N1pdm_NS: 1.0,
   H1N1pdm_PA: 1.0,
-  host: 1.0
+  A_California_07_2009_H1N1_NA: 0.3,
+  A_United_Kingdom_1_1933_H1N1_NA: 0.7
 }
 
 q_range: {

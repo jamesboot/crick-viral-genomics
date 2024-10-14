@@ -9,7 +9,8 @@ process ITERATIVE_ALIGNMENT {
     output:
     tuple val(meta), path("${meta.id}/*.bam")  , emit: bam
     tuple val(meta), path("${meta.id}/*.bai")  , emit: bai
-    tuple val(meta), path("${meta.id}/*.fasta"), emit: fasta
+    tuple val(meta), path("${meta.id}/*consensus.fasta"), emit: consensus_wref
+    tuple val(meta), path("${meta.id}/*consensus.wn.fasta"), emit: consensus_wn
     tuple val(meta), path("${meta.id}/*.csv")  , emit: metrics
 
     when:
@@ -17,6 +18,8 @@ process ITERATIVE_ALIGNMENT {
 
     script:
     max_iterations = task.ext.max_iterations ?: 1
+    min_cov        = task.ext.min_cov ?: 10
+    var_thresh     = task.ext.var_thresh ?: 0.001
     """
     #!/opt/conda/bin/python
 
@@ -35,6 +38,8 @@ process ITERATIVE_ALIGNMENT {
         max_iterations=${max_iterations},
         aligner=Aligner.BWA,
         iteration_mode=IterationMode.COUNT,
+        var_thresh=${var_thresh},
+        min_coverage=${min_cov},
         bwa_args=["-T10"],
     )
 

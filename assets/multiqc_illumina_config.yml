@@ -19,6 +19,7 @@ run_modules:
   - fastqc
   - fastp
   - samtools
+  - picard
 
 module_order:
   - fastqc:
@@ -46,6 +47,10 @@ module_order:
       info: ""
       path_filters:
         - "*viral*"
+  - picard:
+      name: "Duplicates"
+      anchor: "picard_dups"
+      info: ""
   - custom_content
 
 remove_sections:

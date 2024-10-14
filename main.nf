@@ -196,7 +196,7 @@ workflow {
     }
 
     ch_host_bwa_index = Channel.empty()
-    if(host_fasta) {
+    if(params.assemble_ref && host_fasta) {
         //
         // MODULE: Uncompress host genome fasta file if required
         //
@@ -245,7 +245,7 @@ workflow {
     ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.fastqc_trim_zip.collect{it[1]})
     ch_fastq         = FASTQ_TRIM_FASTP_FASTQC.out.reads
 
-    if (params.host_fasta) {
+    if (params.assemble_ref && params.host_fasta) {
         //
         // MODULE: Map raw reads to host
         //
@@ -366,6 +366,7 @@ workflow {
     } else {
         ch_viral_ref = ch_merged_viral_fasta
     }
+
     //
     // MODULE: Index ref
     //
@@ -390,10 +391,11 @@ workflow {
     ITERATIVE_ALIGNMENT (
         ch_fastq_ref
     )
-    ch_bam           = ITERATIVE_ALIGNMENT.out.bam
-    ch_bai           = ITERATIVE_ALIGNMENT.out.bai
-    ch_consensus     = ITERATIVE_ALIGNMENT.out.fasta
-    ch_align_metrics = ITERATIVE_ALIGNMENT.out.metrics
+    ch_bam            = ITERATIVE_ALIGNMENT.out.bam
+    ch_bai            = ITERATIVE_ALIGNMENT.out.bai
+    ch_consensus_wref = ITERATIVE_ALIGNMENT.out.consensus_wref
+    ch_consensus_wn   = ITERATIVE_ALIGNMENT.out.consensus_wn
+    ch_align_metrics  = ITERATIVE_ALIGNMENT.out.metrics
 
     //
     // MODULE: Mark duplicates
