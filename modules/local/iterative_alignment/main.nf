@@ -7,10 +7,11 @@ process ITERATIVE_ALIGNMENT {
     tuple val(meta), path(reads), path(ref)
 
     output:
-    tuple val(meta), path("${meta.id}/*.bam")  , emit: bam
-    tuple val(meta), path("${meta.id}/*.bai")  , emit: bai
-    tuple val(meta), path("${meta.id}/*consensus.fasta"), emit: consensus_wref
+    tuple val(meta), path("${meta.id}/*.bam")              , emit: bam
+    tuple val(meta), path("${meta.id}/*.bai")              , emit: bai
+    tuple val(meta), path("${meta.id}/*consensus.fasta")   , emit: consensus_wref
     tuple val(meta), path("${meta.id}/*consensus.wn.fasta"), emit: consensus_wn
+    tuple val(meta), path("${meta.id}/*final_ref.fasta")   , emit: final_ref
     tuple val(meta), path("${meta.id}/*.csv")  , emit: metrics
 
     when:
