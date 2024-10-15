@@ -133,6 +133,7 @@ workflow {
     ch_host_fasta    = Channel.empty()
     ch_host_bwa      = Channel.empty()
     ch_seq_sim_refs  = Channel.empty()
+    ch_trim_primers  = []
 
     //
     // Init optional input channels
@@ -148,6 +149,9 @@ workflow {
     }
     if (params.generate_reads) {
         ch_seq_sim_refs = Channel.from(file(params.seq_sim_ref_dir, checkIfExists: true))
+    }
+    if (params.trim_primers && params.primers_fasta) {
+        ch_trim_primers = Channel.from(file(params.primers_fasta, checkIfExists: true)).collect()
     }
 
     //
@@ -238,12 +242,12 @@ workflow {
     // SUBWORKFLOW: Fastqc and trimming
     //
     FASTQ_TRIM_FASTP_FASTQC (
-        ch_fastq, // ch_reads
-        [],       // ch_adapter_fasta
-        false,    // val_save_trimmed_fail
-        false,    // val_save_merged
-        false,    // val_skip_fastp
-        false,    // val_skip_fastqc
+        ch_fastq,        // ch_reads
+        ch_trim_primers, // ch_adapter_fasta
+        false,           // val_save_trimmed_fail
+        false,           // val_save_merged
+        false,           // val_skip_fastp
+        false,           // val_skip_fastqc
     )
     ch_versions      = ch_versions.mix(FASTQ_TRIM_FASTP_FASTQC.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.fastqc_raw_zip.collect{it[1]})
@@ -402,87 +406,86 @@ workflow {
     //
     // MODULE: Index ref
     //
-    // SAMTOOLS_FAIDX (
-    //     ch_viral_ref,
-    //     [[],[]]
-    // )
-    // ch_versions      = ch_versions.mix(SAMTOOLS_FAIDX.out.versions)
-    // ch_viral_ref_fai = SAMTOOLS_FAIDX.out.fai
+    SAMTOOLS_FAIDX (
+        ch_viral_ref,
+        [[],[]]
+    )
+    ch_versions      = ch_versions.mix(SAMTOOLS_FAIDX.out.versions)
+    ch_viral_ref_fai = SAMTOOLS_FAIDX.out.fai
 
     //
     // CHANNEL: Join ref to fai
     //
-    // ch_viral_ref_fasta_fai = ch_viral_ref
-    // .map { [it[0].id, it ]}
-    // .join ( ch_viral_ref_fai.map { [it[0].id, it[1]] })
-    // .map{ [it[1][0], it[1][1], it[2]] }
+    ch_viral_ref_fasta_fai = ch_viral_ref
+    .map { [it[0].id, it ]}
+    .join ( ch_viral_ref_fai.map { [it[0].id, it[1]] })
+    .map{ [it[1][0], it[1][1], it[2]] }
 
     //
     // MODULE: Run iterative alignment
     //
-    // ITERATIVE_ALIGNMENT (
-    //     ch_fastq_ref
-    // )
-    // ch_bam            = ITERATIVE_ALIGNMENT.out.bam
-    // ch_bai            = ITERATIVE_ALIGNMENT.out.bai
-    // ch_consensus_wref = ITERATIVE_ALIGNMENT.out.consensus_wref
-    // ch_consensus_wn   = ITERATIVE_ALIGNMENT.out.consensus_wn
-    // ch_final_ref      = ITERATIVE_ALIGNMENT.out.final_ref
-    // ch_align_metrics  = ITERATIVE_ALIGNMENT.out.metrics
+    ITERATIVE_ALIGNMENT (
+        ch_fastq_ref
+    )
+    ch_bam            = ITERATIVE_ALIGNMENT.out.bam
+    ch_bai            = ITERATIVE_ALIGNMENT.out.bai
+    ch_consensus_wref = ITERATIVE_ALIGNMENT.out.consensus_wref
+    ch_consensus_wn   = ITERATIVE_ALIGNMENT.out.consensus_wn
+    ch_final_ref      = ITERATIVE_ALIGNMENT.out.final_ref
+    ch_align_metrics  = ITERATIVE_ALIGNMENT.out.metrics
 
     //
     // MODULE: Mark duplicates
     //
-    // PICARD_MARKDUPLICATES (
-    //     ch_bam,
-    //     [[],[]],
-    //     [[],[]]
-    // )
-    // ch_versions      = ch_versions.mix(PICARD_MARKDUPLICATES.out.versions)
-    // ch_multiqc_files = ch_multiqc_files.mix(PICARD_MARKDUPLICATES.out.metrics.collect{it[1]})
-    // ch_bam           = PICARD_MARKDUPLICATES.out.bam
+    PICARD_MARKDUPLICATES (
+        ch_bam,
+        [[],[]],
+        [[],[]]
+    )
+    ch_versions      = ch_versions.mix(PICARD_MARKDUPLICATES.out.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(PICARD_MARKDUPLICATES.out.metrics.collect{it[1]})
+    ch_bam           = PICARD_MARKDUPLICATES.out.bam
 
     //
     // SUBWORKFLOW: Sort, index BAM file and run samtools stats, flagstat and idxstats
     //
-    // BAM_VIRAL_SORT_STATS (
-    //     ch_bam,
-    //     ch_viral_ref
-    // )
-    // ch_versions      = ch_versions.mix(BAM_VIRAL_SORT_STATS.out.versions)
-    // ch_bam           = BAM_VIRAL_SORT_STATS.out.bam
-    // ch_bai           = BAM_VIRAL_SORT_STATS.out.bai
-    // ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.stats.collect{it[1]})
-    // ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]})
-    // ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
+    BAM_VIRAL_SORT_STATS (
+        ch_bam,
+        ch_viral_ref
+    )
+    ch_versions      = ch_versions.mix(BAM_VIRAL_SORT_STATS.out.versions)
+    ch_bam           = BAM_VIRAL_SORT_STATS.out.bam
+    ch_bai           = BAM_VIRAL_SORT_STATS.out.bai
+    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.stats.collect{it[1]})
+    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]})
+    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
 
     //
     // CHANNEL: Join bam to bai
     //
-    // ch_bam_bai = ch_bam
-    // .map { [it[0].id, it ]}
-    // .join ( ch_bai.map { [it[0].id, it[1]] })
-    // .map{ [it[1][0], it[1][1], it[2]] }
+    ch_bam_bai = ch_bam
+    .map { [it[0].id, it ]}
+    .join ( ch_bai.map { [it[0].id, it[1]] })
+    .map{ [it[1][0], it[1][1], it[2]] }
 
-    // if(params.primers_fasta && params.primers_csv) {
-    //     //
-    //     // SUBWORKFLOW: Prepare primers
-    //     //
-    //     PREPARE_PRIMERS (
-    //         ch_viral_ref,
-    //         file(params.primers_fasta),
-    //         file(params.primers_csv)
-    //     )
-    //     ch_versions = ch_versions.mix(PREPARE_PRIMERS.out.versions)
-    // }
+    if(params.soft_clip_primers && params.primers_fasta && params.primers_csv) {
+        //
+        // SUBWORKFLOW: Prepare primers
+        //
+        PREPARE_PRIMERS (
+            ch_viral_ref,
+            file(params.primers_fasta),
+            file(params.primers_csv)
+        )
+        ch_versions = ch_versions.mix(PREPARE_PRIMERS.out.versions)
 
-    //
-    // MODULE: Run ivar trim
-    //
-    // IVAR_TRIM (
+        
+        //MODULE: Run ivar trim
+        // IVAR_TRIM (
 
-    // )
-    // ch_versions = ch_versions.mix(IVAR_TRIM.out.versions)
+        // )
+        // ch_versions = ch_versions.mix(IVAR_TRIM.out.versions)
+    }
 
     //
     // MODULE: Call variants
@@ -495,12 +498,12 @@ workflow {
     //
     // MODULE: Genome-wide coverage
     //
-    // MOSDEPTH (
-    //     ch_bam_bai.map{[it[0], it[1], it[2], []]},
-    //     ch_viral_ref
-    // )
-    // ch_versions      = ch_versions.mix(MOSDEPTH.out.versions)
-    // ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]})
+    MOSDEPTH (
+        ch_bam_bai.map{[it[0], it[1], it[2], []]},
+        ch_viral_ref
+    )
+    ch_versions      = ch_versions.mix(MOSDEPTH.out.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]})
 
     // TODO
     //
@@ -518,25 +521,25 @@ workflow {
     //
     // MODULE: Track software versions
     //
-    // CUSTOM_DUMPSOFTWAREVERSIONS (
-    //     ch_versions.unique().collectFile()
-    // )
+    CUSTOM_DUMPSOFTWAREVERSIONS (
+        ch_versions.unique().collectFile()
+    )
 
     //
     // MODULE: MULTIQC
     //
-    // workflow_summary = multiqc_summary(workflow, params)
-    // ch_workflow_summary = Channel.value(workflow_summary)
-    // ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
-    // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
-    // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
+    workflow_summary = multiqc_summary(workflow, params)
+    ch_workflow_summary = Channel.value(workflow_summary)
+    ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
+    ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
+    ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
 
-    // MULTIQC (
-    //     ch_multiqc_files.collect(),
-    //     ch_multiqc_config,
-    //     [],
-    //     ch_multiqc_logo
-    // )
+    MULTIQC (
+        ch_multiqc_files.collect(),
+        ch_multiqc_config,
+        [],
+        ch_multiqc_logo
+    )
 }
 
 /*
