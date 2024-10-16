@@ -87,6 +87,7 @@ for (param in check_param_list) { if (param) { file(param, checkIfExists: true) 
 
 include { SEQ_SIMULATOR                        } from './modules/local/seq_simulator/main'
 include { SAMPLESHEET_CHECK                    } from './modules/local/samplesheet/check/main'
+include { CAT_FASTQ                            } from './modules/nf-core/cat/fastq/main'
 include { GUNZIP as GUNZIP_FASTA               } from './modules/nf-core/gunzip/main'
 include { BWA_INDEX                            } from './modules/nf-core/bwa/index/main'
 include { BWA_MEM as BWA_ALIGN_HOST            } from './modules/nf-core/bwa/mem/main'
@@ -116,6 +117,7 @@ include { MULTIQC                              } from './modules/nf-core/multiqc
 */
 
 include { FASTQ_TRIM_FASTP_FASTQC                         } from './subworkflows/nf-core/fastq_trim_fastp_fastqc/main'
+include { FASTQ_NANOPORE_QC_TRIM                         } from './subworkflows/local/fastq_nanopore_qc_trim/main'
 include { BAM_SORT_STATS_SAMTOOLS as BAM_HOST_SORT_STATS  } from './subworkflows/nf-core/bam_sort_stats_samtools/main'
 include { BAM_SORT_STATS_SAMTOOLS as BAM_VIRAL_SORT_STATS } from './subworkflows/nf-core/bam_sort_stats_samtools/main'
 include { PREPARE_PRIMERS                                 } from './subworkflows/local/prepare_primers/main'
@@ -129,7 +131,7 @@ include { PREPARE_PRIMERS                                 } from './subworkflows
 workflow {
     ch_versions      = Channel.empty()
     ch_multiqc_files = Channel.empty()
-    ch_viral_fasta   = Channel.fromPath(params.viral_fasta).toSortedList().map{[[id:"reference"], it]}
+    ch_viral_fasta   = Channel.fromPath(params.viral_fasta).toSortedList().map{[[id:"viral_reference"], it]}
     ch_samplesheet   = Channel.empty()
     ch_host_fasta    = Channel.empty()
     ch_host_bwa      = Channel.empty()
@@ -156,14 +158,28 @@ workflow {
     }
 
     //
+    // CHANNEL: Branch into single and merge fasta files
+    //
+    ch_viral_fasta_merge = ch_viral_fasta
+    .branch {
+        meta, fasta ->
+            single  : fasta.size() == 1
+                return [ meta, fasta.flatten() ]
+            multiple: fasta.size() > 1
+                return [ meta, fasta.flatten() ]
+    }
+
+    //
     // MODULE: Concat the reference files into one file
     //
     MERGE_REFS (
-        ch_viral_fasta,
+        ch_viral_fasta_merge.multiple,
         [],
         true
     )
-    ch_merged_viral_fasta = MERGE_REFS.out.file
+    ch_viral_fasta = MERGE_REFS.out.file.mix(ch_viral_fasta_merge.single)
+
+    ch_viral_fasta | view
 
     ch_fastq = Channel.empty()
     if(params.generate_reads) {
@@ -195,15 +211,42 @@ workflow {
             it.single_end = true
             def read1 = file(it.read1, checkIfExists: true)
             it.remove("read1")
+            it.remove("read2")
             def read2 = null
             if(it.read2) {
                 read2 = file(it.read2, checkIfExists: true)
-                it.remove("read2")
                 it.single_end = false
             }
 
-            [it, [read1, read2]]
+            if (it.read2) {
+                [it, [read1, read2]]
+            }
+            else {
+                [it, [read1]]
+            }
         }
+
+        //
+        // CHANNEL: Branch into single and merge fastqs
+        //
+        ch_fastq_merge = ch_fastq
+        .groupTuple(by: [0])
+        .branch {
+            meta, fastq ->
+                single  : fastq.size() == 1
+                    return [ meta, fastq.flatten() ]
+                multiple: fastq.size() > 1
+                    return [ meta, fastq.flatten() ]
+        }
+
+        //
+        // MODULE: Concatenate FastQ files from same sample if required
+        //
+        CAT_FASTQ (
+            ch_fastq_merge.multiple
+        )
+        ch_versions = ch_versions.mix(CAT_FASTQ.out.versions)
+        ch_fastq    = CAT_FASTQ.out.reads.mix(ch_fastq_merge.single)
     }
 
     ch_host_bwa_index = Channel.empty()
@@ -239,22 +282,29 @@ workflow {
         }
     }
 
-    //
-    // SUBWORKFLOW: Fastqc and trimming
-    //
-    FASTQ_TRIM_FASTP_FASTQC (
-        ch_fastq,        // ch_reads
-        ch_trim_primers, // ch_adapter_fasta
-        false,           // val_save_trimmed_fail
-        false,           // val_save_merged
-        false,           // val_skip_fastp
-        false,           // val_skip_fastqc
-    )
-    ch_versions      = ch_versions.mix(FASTQ_TRIM_FASTP_FASTQC.out.versions)
-    ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.fastqc_raw_zip.collect{it[1]})
-    ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.trim_json.collect{it[1]})
-    ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.fastqc_trim_zip.collect{it[1]})
-    ch_fastq         = FASTQ_TRIM_FASTP_FASTQC.out.reads
+    if(params.run_illumina_qc_trim) {
+        //
+        // SUBWORKFLOW: Fastqc and trimming
+        //
+        FASTQ_TRIM_FASTP_FASTQC (
+            ch_fastq,        // ch_reads
+            ch_trim_primers, // ch_adapter_fasta
+            false,           // val_save_trimmed_fail
+            false,           // val_save_merged
+            false,           // val_skip_fastp
+            false,           // val_skip_fastqc
+        )
+        ch_versions      = ch_versions.mix(FASTQ_TRIM_FASTP_FASTQC.out.versions)
+        ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.fastqc_raw_zip.collect{it[1]})
+        ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.trim_json.collect{it[1]})
+        ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.fastqc_trim_zip.collect{it[1]})
+        ch_fastq         = FASTQ_TRIM_FASTP_FASTQC.out.reads
+    }
+    if(params.run_nanopore_qc_trim) {
+        FASTQ_NANOPORE_QC_TRIM (
+            ch_fastq
+        )
+    }
 
     if (params.assemble_ref && host_fasta != null) {
         //
@@ -360,7 +410,7 @@ workflow {
         // MODULE: Build blastdb of viral segments
         //
         BLAST_MAKEBLASTDB (
-            ch_merged_viral_fasta
+            ch_viral_fasta
         )
         ch_versions      = ch_versions.mix(BLAST_MAKEBLASTDB.out.versions)
         ch_viral_blastdb = BLAST_MAKEBLASTDB.out.db
@@ -379,7 +429,7 @@ workflow {
         // MODULE: Build reference fasta from top blast hits
         //
         BUILD_REFERENCE_FASTA (
-            ch_merged_viral_fasta,
+            ch_viral_fasta,
             ch_blast
         )
         ch_viral_ref = BUILD_REFERENCE_FASTA.out.fasta
@@ -401,7 +451,7 @@ workflow {
         .map{ [it[1], it[2]] }
 
     } else {
-        ch_viral_ref = ch_merged_viral_fasta
+        ch_viral_ref = ch_viral_fasta
     }
 
     //
@@ -422,18 +472,25 @@ workflow {
     .join ( ch_viral_ref_fai.map { [it[0].id, it[1]] })
     .map{ [it[1][0], it[1][1], it[2]] }
 
-    //
-    // MODULE: Run iterative alignment
-    //
-    ITERATIVE_ALIGNMENT (
-        ch_fastq_ref
-    )
-    ch_bam            = ITERATIVE_ALIGNMENT.out.bam
-    ch_bai            = ITERATIVE_ALIGNMENT.out.bai
-    ch_consensus_wref = ITERATIVE_ALIGNMENT.out.consensus_wref
-    ch_consensus_wn   = ITERATIVE_ALIGNMENT.out.consensus_wn
-    ch_final_ref      = ITERATIVE_ALIGNMENT.out.final_ref
-    ch_align_metrics  = ITERATIVE_ALIGNMENT.out.metrics
+    ch_bam = Channel.empty()
+    ch_bai = Channel.empty()
+    if(params.run_iterative_align) {
+        //
+        // MODULE: Run iterative alignment
+        //
+        ITERATIVE_ALIGNMENT (
+            ch_fastq_ref
+        )
+        ch_bam            = ITERATIVE_ALIGNMENT.out.bam
+        ch_bai            = ITERATIVE_ALIGNMENT.out.bai
+        ch_consensus_wref = ITERATIVE_ALIGNMENT.out.consensus_wref
+        ch_consensus_wn   = ITERATIVE_ALIGNMENT.out.consensus_wn
+        ch_final_ref      = ITERATIVE_ALIGNMENT.out.final_ref
+        ch_align_metrics  = ITERATIVE_ALIGNMENT.out.metrics
+    }
+    // else if() {
+
+    // }
 
     //
     // MODULE: Mark duplicates
