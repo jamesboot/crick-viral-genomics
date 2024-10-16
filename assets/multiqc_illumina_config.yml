@@ -72,3 +72,4 @@ extra_fn_clean_exts:
   - "_trimmed_2"
   - "_raw_1"
   - "_raw_2"
+  - "_final"

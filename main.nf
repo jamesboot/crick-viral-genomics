@@ -38,6 +38,7 @@ if(params.host_bwa) {
     host_bwa = params.host_bwa
 }
 
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     INIT
@@ -206,7 +207,7 @@ workflow {
     }
 
     ch_host_bwa_index = Channel.empty()
-    if(params.assemble_ref && host_fasta) {
+    if(params.assemble_ref && host_fasta != null) {
         //
         // MODULE: Uncompress host genome fasta file if required
         //
@@ -221,14 +222,14 @@ workflow {
         //
         // MODULES: Uncompress BWA index or generate if required
         //
-        if (host_bwa) {
+        if (host_bwa != null) {
             if (ch_host_bwa_index.toString().endsWith(".tar.gz")) {
                 UNTAR_BWA ( [[:], ch_host_bwa_index] )
                 ch_versions       = ch_versions.mix( UNTAR_BWA.out.versions )
                 ch_host_bwa_index = UNTAR_BWA.out.untar
 
             } else {
-                ch_host_bwa_index = Channel.of([[:], ch_host_bwa_index])
+                ch_host_bwa_index = Channel.of([[:], host_bwa])
             }
         }
         else {
@@ -255,14 +256,14 @@ workflow {
     ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.fastqc_trim_zip.collect{it[1]})
     ch_fastq         = FASTQ_TRIM_FASTP_FASTQC.out.reads
 
-    if (params.assemble_ref && params.host_fasta) {
+    if (params.assemble_ref && host_fasta != null) {
         //
         // MODULE: Map raw reads to host
         //
         BWA_ALIGN_HOST (
             ch_fastq,
-            ch_host_bwa_index,
-            ch_host_fasta,
+            ch_host_bwa_index.collect(),
+            ch_host_fasta.collect(),
             "view"
         )
         ch_versions = ch_versions.mix(BWA_ALIGN_HOST.out.versions)
@@ -273,7 +274,7 @@ workflow {
         //
         BAM_HOST_SORT_STATS (
             ch_host_bam,
-            ch_host_fasta
+            ch_host_fasta.collect()
         )
         ch_versions           = ch_versions.mix(BAM_HOST_SORT_STATS.out.versions)
         ch_host_bam           = BAM_HOST_SORT_STATS.out.bam
@@ -298,7 +299,7 @@ workflow {
         //
         SAMTOOLS_VIEW_HOST (
             ch_host_bam_bai,
-            ch_host_fasta,
+            ch_host_fasta.collect(),
             []
         )
         ch_versions = ch_versions.mix(SAMTOOLS_VIEW_HOST.out.versions)
@@ -451,7 +452,7 @@ workflow {
     //
     BAM_VIRAL_SORT_STATS (
         ch_bam,
-        ch_viral_ref
+        [[],[]]
     )
     ch_versions      = ch_versions.mix(BAM_VIRAL_SORT_STATS.out.versions)
     ch_bam           = BAM_VIRAL_SORT_STATS.out.bam
@@ -461,23 +462,24 @@ workflow {
     ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
 
     //
-    // CHANNEL: Join bam to bai
+    // CHANNEL: Join bam to bai and ref
     //
-    ch_bam_bai = ch_bam
+    ch_bam_bai_fasta_fai = ch_bam
     .map { [it[0].id, it ]}
     .join ( ch_bai.map { [it[0].id, it[1]] })
-    .map{ [it[1][0], it[1][1], it[2]] }
+    .join ( ch_viral_ref_fasta_fai.map { [it[0].id, it[1], it[2]] })
+    .map{ [it[1][0], it[1][1], it[2], it[3], it[4]] }
 
-    if(params.soft_clip_primers && params.primers_fasta && params.primers_csv) {
+    // if(params.soft_clip_primers && params.primers_fasta && params.primers_csv) {
         //
         // SUBWORKFLOW: Prepare primers
         //
-        PREPARE_PRIMERS (
-            ch_viral_ref,
-            file(params.primers_fasta),
-            file(params.primers_csv)
-        )
-        ch_versions = ch_versions.mix(PREPARE_PRIMERS.out.versions)
+        // PREPARE_PRIMERS (
+        //     ch_viral_ref,
+        //     file(params.primers_fasta),
+        //     file(params.primers_csv)
+        // )
+        // ch_versions = ch_versions.mix(PREPARE_PRIMERS.out.versions)
 
         
         //MODULE: Run ivar trim
@@ -485,22 +487,22 @@ workflow {
 
         // )
         // ch_versions = ch_versions.mix(IVAR_TRIM.out.versions)
-    }
+    // }
 
     //
     // MODULE: Call variants
     //
-    // LOFREQ_CALL (
-    //     ch_bam_bai,
-    //     ch_viral_ref_fasta_fai
-    // )
+    LOFREQ_CALL (
+        ch_bam_bai_fasta_fai.map{[it[0], it[1], it[2]]},
+        ch_bam_bai_fasta_fai.map{[it[0], it[3], it[4]]},
+    )
 
     //
     // MODULE: Genome-wide coverage
     //
     MOSDEPTH (
-        ch_bam_bai.map{[it[0], it[1], it[2], []]},
-        ch_viral_ref
+        ch_bam_bai_fasta_fai.map{[it[0], it[1], it[2], []]},
+        ch_bam_bai_fasta_fai.map{[it[0], it[3]]},
     )
     ch_versions      = ch_versions.mix(MOSDEPTH.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]})
