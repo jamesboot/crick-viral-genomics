@@ -94,7 +94,7 @@ include { MINIMAP2_INDEX                       } from './modules/nf-core/minimap
 include { MINIMAP2_ALIGN                       } from './modules/nf-core/minimap2/align/main'
 include { SAMTOOLS_FAIDX                       } from './modules/nf-core/samtools/faidx/main'
 include { PICARD_MARKDUPLICATES                } from './modules/nf-core/picard/markduplicates/main'
-
+include { ARTIC_ALIGN_TRIM                     } from './modules/local/artic/align_trim/main'
 
 
 
@@ -235,7 +235,7 @@ workflow {
         // SUBWORKFLOW: Fastqc and trimming
         //
         ch_trim_primers  = []
-        if (params.trim_primers && params.primers_fasta) {
+        if (params.trim_primers_from_reads && params.primers_fasta) {
             ch_trim_primers = Channel.from(file(params.primers_fasta, checkIfExists: true)).collect()
         }
         FASTQ_TRIM_FASTP_FASTQC (
@@ -357,7 +357,7 @@ workflow {
             true,
             false,
             false,
-            true
+            false
         )
         ch_versions = ch_versions.mix(MINIMAP2_ALIGN.out.versions)
         ch_bam      = MINIMAP2_ALIGN.out.bam
@@ -378,46 +378,54 @@ workflow {
     }
 
     //
-    // SUBWORKFLOW: Sort, index BAM file and run samtools stats, flagstat and idxstats
+    // SECTION: Primer pre-processing
     //
-    BAM_VIRAL_SORT_STATS (
-        ch_bam,
-        [[],[]]
-    )
-    ch_versions      = ch_versions.mix(BAM_VIRAL_SORT_STATS.out.versions)
-    ch_bam           = BAM_VIRAL_SORT_STATS.out.bam
-    ch_bai           = BAM_VIRAL_SORT_STATS.out.bai
-    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.stats.collect{it[1]})
-    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]})
-    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
-
-    //
-    // CHANNEL: Join bam to bai and ref
-    //
-    ch_bam_bai_fasta_fai = ch_bam
-    .map { [it[0].id, it ]}
-    .join ( ch_bai.map { [it[0].id, it[1]] })
-    .join ( ch_viral_ref_fasta_fai.map { [it[0].id, it[1], it[2]] })
-    .map{ [it[1][0], it[1][1], it[2], it[3], it[4]] }
-
-    // if(params.soft_clip_primers && params.primers_fasta && params.primers_csv) {
-        //
-        // SUBWORKFLOW: Prepare primers
-        //
+    ch_primer_bed = Channel.empty()
+    if(params.primers_fasta && params.primers_csv) {
         // PREPARE_PRIMERS (
         //     ch_viral_ref,
         //     file(params.primers_fasta),
         //     file(params.primers_csv)
         // )
         // ch_versions = ch_versions.mix(PREPARE_PRIMERS.out.versions)
+    } else if(params.primers_bed) {
+        ch_primer_bed = Channel.from(file(params.primers_bed, checkIfExists: true)).collect()
+    }
 
-        
-        //MODULE: Run ivar trim
-        // IVAR_TRIM (
+    //
+    // SECTION: Primer trimming
+    //
+    if(params.run_artic_primer_trim) {
+        ARTIC_ALIGN_TRIM (
+            ch_bam,
+            ch_primer_bed
+        )
+        ch_trimmed_bam        = ARTIC_ALIGN_TRIM.out.trimmed_bam
+        ch_primer_trimmed_bam = ARTIC_ALIGN_TRIM.out.primer_trimmed_bam
+    }
 
-        // )
-        // ch_versions = ch_versions.mix(IVAR_TRIM.out.versions)
-    // }
+    //
+    // SUBWORKFLOW: Sort, index BAM file and run samtools stats, flagstat and idxstats
+    //
+    // BAM_VIRAL_SORT_STATS (
+    //     ch_bam,
+    //     [[],[]]
+    // )
+    // ch_versions      = ch_versions.mix(BAM_VIRAL_SORT_STATS.out.versions)
+    // ch_bam           = BAM_VIRAL_SORT_STATS.out.bam
+    // ch_bai           = BAM_VIRAL_SORT_STATS.out.bai
+    // ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.stats.collect{it[1]})
+    // ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]})
+    // ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
+
+    //
+    // CHANNEL: Join bam to bai and ref
+    //
+    // ch_bam_bai_fasta_fai = ch_bam
+    // .map { [it[0].id, it ]}
+    // .join ( ch_bai.map { [it[0].id, it[1]] })
+    // .join ( ch_viral_ref_fasta_fai.map { [it[0].id, it[1], it[2]] })
+    // .map{ [it[1][0], it[1][1], it[2], it[3], it[4]] }
 
     //
     // MODULE: Call variants
