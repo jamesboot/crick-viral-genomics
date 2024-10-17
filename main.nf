@@ -89,14 +89,15 @@ include { LINUX_COMMAND as MERGE_REFS          } from './modules/local/linux/com
 include { SEQ_SIMULATOR                        } from './modules/local/seq_simulator/main'
 include { SAMPLESHEET_CHECK                    } from './modules/local/samplesheet/check/main'
 include { CAT_FASTQ                            } from './modules/nf-core/cat/fastq/main'
-
-
-
-
 include { ITERATIVE_ALIGNMENT                  } from './modules/local/iterative_alignment/main'
-include { IVAR_TRIM                            } from './modules/nf-core/ivar/trim/main'
+include { MINIMAP2_INDEX                       } from './modules/nf-core/minimap2/index/main'
+include { MINIMAP2_ALIGN                       } from './modules/nf-core/minimap2/align/main'
 include { SAMTOOLS_FAIDX                       } from './modules/nf-core/samtools/faidx/main'
 include { PICARD_MARKDUPLICATES                } from './modules/nf-core/picard/markduplicates/main'
+
+
+
+
 include { LOFREQ_CALL                          } from './modules/local/lofreq/call/main'
 include { MOSDEPTH                             } from './modules/nf-core/mosdepth/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS          } from './modules/local/custom_dumpsoftwareversions.nf'
@@ -258,6 +259,7 @@ workflow {
         FASTQ_NANOPORE_QC_TRIM (
             ch_fastq
         )
+        ch_versions = ch_versions.mix(FASTQ_NANOPORE_QC_TRIM.out.versions)
     }
 
     //
@@ -314,6 +316,9 @@ workflow {
     .join ( ch_viral_ref_fai.map { [it[0].id, it[1]] })
     .map{ [it[1][0], it[1][1], it[2]] }
 
+    //
+    // SECTION: Alignment
+    //
     ch_bam = Channel.empty()
     ch_bai = Channel.empty()
     if(params.run_iterative_align) {
@@ -334,7 +339,28 @@ workflow {
 
     }
     else if(params.run_minimap_align) {
+        //
+        // MODULE: Minimap index
+        //
+        MINIMAP2_INDEX (
+            ch_viral_ref
+        )
+        ch_versions    = ch_versions.mix(MINIMAP2_INDEX.out.versions)
+        ch_mm2_index   = MINIMAP2_INDEX.out.index
 
+        //
+        // MODULE: Minimap align
+        //
+        MINIMAP2_ALIGN (
+            ch_fastq,
+            ch_mm2_index.collect(),
+            true,
+            false,
+            false,
+            true
+        )
+        ch_versions = ch_versions.mix(MINIMAP2_ALIGN.out.versions)
+        ch_bam      = MINIMAP2_ALIGN.out.bam
     }
 
     //
@@ -396,20 +422,20 @@ workflow {
     //
     // MODULE: Call variants
     //
-    LOFREQ_CALL (
-        ch_bam_bai_fasta_fai.map{[it[0], it[1], it[2]]},
-        ch_bam_bai_fasta_fai.map{[it[0], it[3], it[4]]},
-    )
+    // LOFREQ_CALL (
+    //     ch_bam_bai_fasta_fai.map{[it[0], it[1], it[2]]},
+    //     ch_bam_bai_fasta_fai.map{[it[0], it[3], it[4]]},
+    // )
 
     //
     // MODULE: Genome-wide coverage
     //
-    MOSDEPTH (
-        ch_bam_bai_fasta_fai.map{[it[0], it[1], it[2], []]},
-        ch_bam_bai_fasta_fai.map{[it[0], it[3]]},
-    )
-    ch_versions      = ch_versions.mix(MOSDEPTH.out.versions)
-    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]})
+    // MOSDEPTH (
+    //     ch_bam_bai_fasta_fai.map{[it[0], it[1], it[2], []]},
+    //     ch_bam_bai_fasta_fai.map{[it[0], it[3]]},
+    // )
+    // ch_versions      = ch_versions.mix(MOSDEPTH.out.versions)
+    // ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]})
 
     // TODO
     //
