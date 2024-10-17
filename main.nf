@@ -85,20 +85,19 @@ for (param in check_param_list) { if (param) { file(param, checkIfExists: true) 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { LINUX_COMMAND as MERGE_REFS          } from './modules/local/linux/command/main'
-include { SEQ_SIMULATOR                        } from './modules/local/seq_simulator/main'
-include { SAMPLESHEET_CHECK                    } from './modules/local/samplesheet/check/main'
-include { CAT_FASTQ                            } from './modules/nf-core/cat/fastq/main'
-include { ITERATIVE_ALIGNMENT                  } from './modules/local/iterative_alignment/main'
-include { MINIMAP2_INDEX                       } from './modules/nf-core/minimap2/index/main'
-include { MINIMAP2_ALIGN                       } from './modules/nf-core/minimap2/align/main'
-include { SAMTOOLS_FAIDX                       } from './modules/nf-core/samtools/faidx/main'
-include { PICARD_MARKDUPLICATES                } from './modules/nf-core/picard/markduplicates/main'
-include { ARTIC_ALIGN_TRIM                     } from './modules/local/artic/align_trim/main'
+include { LINUX_COMMAND as MERGE_REFS           } from './modules/local/linux/command/main'
+include { SEQ_SIMULATOR                         } from './modules/local/seq_simulator/main'
+include { SAMPLESHEET_CHECK                     } from './modules/local/samplesheet/check/main'
+include { CAT_FASTQ                             } from './modules/nf-core/cat/fastq/main'
+include { ITERATIVE_ALIGNMENT                   } from './modules/local/iterative_alignment/main'
+include { MINIMAP2_INDEX                        } from './modules/nf-core/minimap2/index/main'
+include { MINIMAP2_ALIGN                        } from './modules/nf-core/minimap2/align/main'
+include { SAMTOOLS_FAIDX                        } from './modules/nf-core/samtools/faidx/main'
+include { PICARD_MARKDUPLICATES                 } from './modules/nf-core/picard/markduplicates/main'
+include { ARTIC_ALIGN_TRIM                      } from './modules/local/artic/align_trim/main'
+include { SAMTOOLS_INDEX as INDEX_TRIMED        } from './modules/nf-core/samtools/index/main'
+include { SAMTOOLS_INDEX as INDEX_PRIMER_TRIMED } from './modules/nf-core/samtools/index/main'
 
-
-
-include { LOFREQ_CALL                          } from './modules/local/lofreq/call/main'
 include { MOSDEPTH                             } from './modules/nf-core/mosdepth/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS          } from './modules/local/custom_dumpsoftwareversions.nf'
 include { MULTIQC                              } from './modules/nf-core/multiqc/main'
@@ -115,6 +114,7 @@ include { ILLUMINA_REMOVE_HOST                            } from './subworkflows
 include { ASSEMBLE_REFERENCE                              } from './subworkflows/local/assemble_reference/main'
 include { BAM_SORT_STATS_SAMTOOLS as BAM_VIRAL_SORT_STATS } from './subworkflows/nf-core/bam_sort_stats_samtools/main'
 // include { PREPARE_PRIMERS                                 } from './subworkflows/local/prepare_primers/main'
+include { NANOPORE_VARCALL                                } from './subworkflows/local/nanopore_varcall/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -378,6 +378,20 @@ workflow {
     }
 
     //
+    // SUBWORKFLOW: Sort, index BAM file and run samtools stats, flagstat and idxstats
+    //
+    BAM_VIRAL_SORT_STATS (
+        ch_bam,
+        [[],[]]
+    )
+    ch_versions      = ch_versions.mix(BAM_VIRAL_SORT_STATS.out.versions)
+    ch_bam           = BAM_VIRAL_SORT_STATS.out.bam
+    ch_bai           = BAM_VIRAL_SORT_STATS.out.bai
+    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.stats.collect{it[1]})
+    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]})
+    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
+
+    //
     // SECTION: Primer pre-processing
     //
     ch_primer_bed = Channel.empty()
@@ -395,28 +409,41 @@ workflow {
     //
     // SECTION: Primer trimming
     //
+    ch_trimmed_bam            = Channel.empty()
+    ch_primer_trimmed_bam     = Channel.empty()
+    ch_trimmed_bam_bai        = Channel.empty()
+    ch_primer_trimmed_bam_bai = Channel.empty()
     if(params.run_artic_primer_trim) {
+        //
+        // MODULE: Trim primers from reads and assig read group to primer pool
+        //
         ARTIC_ALIGN_TRIM (
             ch_bam,
             ch_primer_bed
         )
         ch_trimmed_bam        = ARTIC_ALIGN_TRIM.out.trimmed_bam
         ch_primer_trimmed_bam = ARTIC_ALIGN_TRIM.out.primer_trimmed_bam
+
+        //
+        // MODULE: Index the trimmed reads
+        //
+        INDEX_TRIMED ( ch_trimmed_bam )
+        INDEX_PRIMER_TRIMED ( ch_primer_trimmed_bam )
+        ch_trimmed_bam_bai = INDEX_TRIMED.out.bai
+        ch_primer_trimmed_bam_bai = INDEX_PRIMER_TRIMED.out.bai
     }
 
     //
-    // SUBWORKFLOW: Sort, index BAM file and run samtools stats, flagstat and idxstats
+    // SECTION: Variant and consensus calling
     //
-    // BAM_VIRAL_SORT_STATS (
-    //     ch_bam,
-    //     [[],[]]
-    // )
-    // ch_versions      = ch_versions.mix(BAM_VIRAL_SORT_STATS.out.versions)
-    // ch_bam           = BAM_VIRAL_SORT_STATS.out.bam
-    // ch_bai           = BAM_VIRAL_SORT_STATS.out.bai
-    // ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.stats.collect{it[1]})
-    // ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]})
-    // ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
+    if(params.run_nanopore_varcall) {
+        NANOPORE_VARCALL (
+            ch_trimmed_bam,
+            ch_primer_trimmed_bam,
+            ch_primer_bed,
+            params.pool_primer_reads
+        )
+    }
 
     //
     // CHANNEL: Join bam to bai and ref
@@ -426,6 +453,7 @@ workflow {
     // .join ( ch_bai.map { [it[0].id, it[1]] })
     // .join ( ch_viral_ref_fasta_fai.map { [it[0].id, it[1], it[2]] })
     // .map{ [it[1][0], it[1][1], it[2], it[3], it[4]] }
+
 
     //
     // MODULE: Call variants
