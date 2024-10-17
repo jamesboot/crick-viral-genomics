@@ -2,9 +2,7 @@
 // Read QC and trimming for nanopore reads
 //
 
-// include { FASTQC as FASTQC_RAW  } from '../../../modules/nf-core/fastqc/main'
-// include { FASTQC as FASTQC_TRIM } from '../../../modules/nf-core/fastqc/main'
-// include { FASTP                 } from '../../../modules/nf-core/fastp/main'
+include { TOULLIGQC  } from '../../../modules/local/toulligqc/main'
 
 
 workflow FASTQ_NANOPORE_QC_TRIM {
@@ -19,6 +17,17 @@ workflow FASTQ_NANOPORE_QC_TRIM {
     main:
 
     ch_versions = Channel.empty()
+
+    //
+    // MODULE: Run toulligqc on reads
+    //
+    TOULLIGQC (
+        ch_reads,
+        [],
+        []
+    )
+    ch_versions = ch_versions.mix(TOULLIGQC.out.versions)
+
 
 
     emit:
