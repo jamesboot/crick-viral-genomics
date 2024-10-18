@@ -143,6 +143,11 @@
             "git_sha": "6c2309aaec566c0d44a6cf14d4b2d0c51afe2e91",
             "installed_by": ["modules"]
           },
+          "tabix/bgziptabix": {
+            "branch": "master",
+            "git_sha": "f448e846bdadd80fc8be31fbbc78d9f5b5131a45",
+            "installed_by": ["modules"]
+          },
           "untar": {
             "branch": "master",
             "git_sha": "5caf7640a9ef1d18d765d55339be751bb0969dfa",

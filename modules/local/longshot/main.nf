@@ -1,4 +1,4 @@
-process ARTIC_ALIGN_TRIM {
+process LONGSHOT {
     label 'process_single'
     tag "$meta.id"
 
@@ -7,38 +7,31 @@ process ARTIC_ALIGN_TRIM {
         'community.wave.seqera.io/library/longshot:1.0.0--bd7e35fe51062951' }"
 
     input:
-    tuple val(meta), path(bam)
-    path bed
+    tuple val(meta), path(bam), path(bai)
+    tuple val(meta2), path(vcf), path(tbi)
+    tuple val(meta3), path(fasta), path(fai)
 
     output:
-    tuple val(meta), path('*.trimmed.rg.sorted.bam')      , emit: trimmed_bam
-    tuple val(meta), path('*.primertrimmed.rg.sorted.bam'), emit: primer_trimmed_bam
-    tuple val(meta), path('*1.txt')                       , emit: report_trimmed
-    tuple val(meta), path('*2.txt')                       , emit: report_primer_trimmed
+    tuple val(meta), path("*.vcf"), emit: vcf
+    path "versions.yml"           , emit: versions
 
     when:
     task.ext.when == null || task.ext.when
 
     script:
     def args = task.ext.args ?: ''
-    def args2 = task.ext.args2 ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    align_trim \\
-        $bed \\
+    longshot \\
         $args \\
-        --start \\
-        --remove-incorrect-pairs \\
-        --report ${prefix}.alignreport_1.txt \\
-        < $bam 2> ${prefix}.alignreport_1.er \\
-        | samtools sort -T ${prefix} - -o ${prefix}.trimmed.rg.sorted.bam
+        --bam $bam \\
+        --ref $fasta \\
+        --potential_variants $vcf \\
+        --out ${prefix}.vcf
 
-    align_trim \\
-        $bed \\
-        $args \\
-        --remove-incorrect-pairs \\
-        --report ${prefix}.alignreport_2.txt \\
-        < $bam 2> ${prefix}.alignreport_2.er \\
-        | samtools sort -T ${prefix} - -o ${prefix}.primertrimmed.rg.sorted.bam
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        longshot: \$( longshot --version 2>&1 | sed 's/Longshot: variant caller (SNVs) for long-read sequencing data //g' )
+    END_VERSIONS
     """
 }

@@ -5,7 +5,8 @@
 include { MEDAKA_INFERENCE } from '../../../modules/local/medaka/inference/main'
 include { MEDAKA_VCF       } from '../../../modules/local/medaka/vcf/main'
 include { ARTIC_VCF_MERGE  } from '../../../modules/local/artic/vcf_merge/main'
-
+include { TABIX_BGZIPTABIX } from '../../../modules/nf-core/tabix/bgziptabix/main'
+include { LONGSHOT         } from '../../../modules/local/longshot/main'
 
 workflow NANOPORE_VARCALL {
     take:
@@ -73,8 +74,53 @@ workflow NANOPORE_VARCALL {
         ch_vcf_pools,
         primer_bed
     )
+    ch_merged_vcf = ARTIC_VCF_MERGE.out.vcf
+
+    //
+    // MODULE: Gzip and index VCF
+    //
+    TABIX_BGZIPTABIX (
+        ch_merged_vcf
+    )
+    ch_versions   = ch_versions.mix(TABIX_BGZIPTABIX.out.versions)
+    ch_vcf_gz_tbi = TABIX_BGZIPTABIX.out.gz_tbi
+
+    //
+    // MODULE: Join VCF with reads
+    //
+    ch_primer_trimmed_bam_bai_vcf_tbi = primer_trimmed_bam_bai
+    .map { [it[0].id, it ]}
+    .join ( ch_vcf_gz_tbi.map { [it[0].id, it[1], it[2]] })
+    .map{ [it[1][0], it[1][1], it[1][2], it[2], it[3]] }
+
+    //
+    // MODULE: Call variants with longshot and provide extra metadata
+    //
+    LONGSHOT (
+        ch_primer_trimmed_bam_bai_vcf_tbi.map{[it[0], it[1], it[2]]},
+        ch_primer_trimmed_bam_bai_vcf_tbi.map{[it[0], it[3], it[4]]},
+        reference.collect()
+    )
+    ch_versions = ch_versions.mix(LONGSHOT.out.versions)
+    ch_vcf      = LONGSHOT.out.vcf
+
 
     emit:
 
     versions = ch_versions.ifEmpty(null)
 }
+
+
+    // # 8) check and filter the VCFs
+    // ## if using strict, run the vcf checker to remove vars present only once in overlap regions (this replaces the original merged vcf from the previous step)
+    // if args.strict:
+    //     cmds.append("bgzip -f %s.merged.vcf" % (args.sample))
+    //     cmds.append("tabix -p vcf %s.merged.vcf.gz" % (args.sample))
+    //     cmds.append("artic-tools check_vcf --dropPrimerVars --dropOverlapFails --vcfOut %s.merged.filtered.vcf %s.merged.vcf.gz %s 2> %s.vcfreport.txt" % (args.sample, args.sample, bed, args.sample))
+    //     cmds.append("mv %s.merged.filtered.vcf %s.merged.vcf" % (args.sample, args.sample))
+
+    // ## if doing the medaka workflow and longshot required, do it on the merged VCF
+    // if args.medaka and not args.no_longshot:
+    //     cmds.append("bgzip -f %s.merged.vcf" % (args.sample))
+    //     cmds.append("tabix -f -p vcf %s.merged.vcf.gz" % (args.sample))
+    //     cmds.append("longshot -P 0 -F -A --no_haps --bam %s.primertrimmed.rg.sorted.bam --ref %s --out %s.merged.vcf --potential_variants %s.merged.vcf.gz" % (args.sample, ref, args.sample, args.sample))
