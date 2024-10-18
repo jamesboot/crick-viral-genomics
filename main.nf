@@ -411,8 +411,8 @@ workflow {
     //
     ch_trimmed_bam            = Channel.empty()
     ch_primer_trimmed_bam     = Channel.empty()
-    ch_trimmed_bam_bai        = Channel.empty()
-    ch_primer_trimmed_bam_bai = Channel.empty()
+    ch_trimmed_bai        = Channel.empty()
+    ch_primer_trimmed_bai = Channel.empty()
     if(params.run_artic_primer_trim) {
         //
         // MODULE: Trim primers from reads and assig read group to primer pool
@@ -429,19 +429,33 @@ workflow {
         //
         INDEX_TRIMED ( ch_trimmed_bam )
         INDEX_PRIMER_TRIMED ( ch_primer_trimmed_bam )
-        ch_trimmed_bam_bai = INDEX_TRIMED.out.bai
-        ch_primer_trimmed_bam_bai = INDEX_PRIMER_TRIMED.out.bai
+        ch_trimmed_bai = INDEX_TRIMED.out.bai
+        ch_primer_trimmed_bai = INDEX_PRIMER_TRIMED.out.bai
     }
+
+    //
+    // CHANNEL: Join bam to bai
+    //
+    ch_trimmed_bam_bai = ch_trimmed_bam
+    .map { [it[0].id, it ]}
+    .join ( ch_trimmed_bai.map { [it[0].id, it[1]] })
+    .map{ [it[1][0], it[1][1], it[2]] }
+
+    ch_primer_trimmed_bam_bai = ch_primer_trimmed_bam
+    .map { [it[0].id, it ]}
+    .join ( ch_primer_trimmed_bai.map { [it[0].id, it[1]] })
+    .map{ [it[1][0], it[1][1], it[2]] }
 
     //
     // SECTION: Variant and consensus calling
     //
     if(params.run_nanopore_varcall) {
         NANOPORE_VARCALL (
-            ch_trimmed_bam,
-            ch_primer_trimmed_bam,
+            ch_trimmed_bam_bai,
+            ch_primer_trimmed_bam_bai,
             ch_primer_bed,
-            params.pool_primer_reads
+            params.pool_primer_reads,
+            ch_viral_ref_fasta_fai
         )
     }
 

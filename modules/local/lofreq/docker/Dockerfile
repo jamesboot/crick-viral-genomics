@@ -1,24 +1,4 @@
-FROM mambaorg/micromamba:latest
-
-# Install apt packages
-USER root
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-    wget \
-    procps \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install conda packages
-USER $MAMBA_USER
-COPY --chown=$MAMBA_USER:$MAMBA_USER env.yml /tmp/env.yml
-RUN micromamba install -y -n base -f /tmp/env.yml && \
-    micromamba clean --all --yes
-ENV PATH /opt/conda/bin:$PATH
-WORKDIR /home/mambauser
-
-# Base stage: Common setup for both test and prod
-FROM condaforge/miniforge3 AS base
+FROM condaforge/miniforge3
 
 # Install apt packages
 USER root
@@ -49,5 +29,3 @@ ENV PATH=/opt/conda/bin:$PATH
 WORKDIR /home
 
 CMD ["bash"]
-
-
