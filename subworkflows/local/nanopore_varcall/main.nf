@@ -2,11 +2,21 @@
 // Generate consesnus and call variants from nanopore reads
 //
 
-include { MEDAKA_INFERENCE } from '../../../modules/local/medaka/inference/main'
-include { MEDAKA_VCF       } from '../../../modules/local/medaka/vcf/main'
-include { ARTIC_VCF_MERGE  } from '../../../modules/local/artic/vcf_merge/main'
-include { TABIX_BGZIPTABIX } from '../../../modules/nf-core/tabix/bgziptabix/main'
-include { LONGSHOT         } from '../../../modules/local/longshot/main'
+include { MEDAKA_INFERENCE                     } from '../../../modules/local/medaka/inference/main'
+include { MEDAKA_VCF                           } from '../../../modules/local/medaka/vcf/main'
+include { MEDAKA_ANNOTATE                      } from '../../../modules/local/medaka/annotate/main'
+include { ARTIC_VCF_MERGE                      } from '../../../modules/local/artic/vcf_merge/main'
+include { BCFTOOLS_PASS_FAIL_SPLIT             } from '../../../modules/local/bcftools/pass_fail_split/main'
+include { TABIX_BGZIPTABIX as INDEX_CONSEN_VCF } from '../../../modules/nf-core/tabix/bgziptabix/main'
+include { ARTIC_MAKE_DEPTH_MASK                } from '../../../modules/local/artic/make_depth_mask/main'
+include { ARTIC_MASK                           } from '../../../modules/local/artic/mask/main'
+include { BCFTOOLS_CONSENSUS                   } from '../../../modules/nf-core/bcftools/consensus/main'
+// include { CLAIR3_RUN                           } from '../../../modules/local/clair3/main'
+// include { GUNZIP as GUNZIP_VCF                 } from '../../../modules/nf-core/gunzip/main'
+
+
+// include { SNPEFF_BUILD                           } from '../../../modules/local/snpeff/build/main'
+// include { SNPEFF_ANN                             } from '../../../modules/local/snpeff/ann/main'
 
 workflow NANOPORE_VARCALL {
     take:
@@ -15,7 +25,9 @@ workflow NANOPORE_VARCALL {
     primer_bed             // file
     val_pool_reads         // val
     reference              // channel: [ val(meta), path(fasta), path(fai) ]
-
+    gff                    // file
+    clair3_model
+    clair3_platform
 
     main:
     ch_versions = Channel.empty()
@@ -47,23 +59,43 @@ workflow NANOPORE_VARCALL {
         ch_pool_trimmed_bam.map{[it[1], it[2], it[3]]},
         ch_pool_trimmed_bam.map{[it[0]]}
     )
-    ch_versions = ch_versions.mix(MEDAKA_INFERENCE.out.versions)
-    ch_hdf      = MEDAKA_INFERENCE.out.hdf
+    ch_versions   = ch_versions.mix(MEDAKA_INFERENCE.out.versions)
+    ch_medaka_hdf = MEDAKA_INFERENCE.out.hdf
 
     //
     // MODULE: Generate vcf
     //
     MEDAKA_VCF (
-        ch_hdf,
+        ch_medaka_hdf,
         reference.collect()
     )
-    ch_versions = ch_versions.mix(MEDAKA_VCF.out.versions)
-    ch_vcf      = MEDAKA_VCF.out.vcf
+    ch_versions   = ch_versions.mix(MEDAKA_VCF.out.versions)
+    ch_medaka_vcf = MEDAKA_VCF.out.vcf
 
     //
-    // MODULE: Merge vcfs
+    // MODULE: Join pooled VCF with reads
     //
-    ch_vcf_pools = ch_vcf
+    ch_pool_trimmed_bam_vcf = ch_pool_trimmed_bam
+    .map { [it[1].id + "_" + it[1].pool, it ]}
+    .join ( ch_medaka_vcf.map { [it[0].id + "_" + it[0].pool, it[1]] })
+    .map{ [it[1][0], it[1][1], it[1][2], it[1][3], it[2]] }
+
+    //
+    // MODULE: Generate vcf
+    //
+    MEDAKA_ANNOTATE (
+        ch_pool_trimmed_bam_vcf.map{[it[1], it[4]]},
+        ch_pool_trimmed_bam_vcf.map{[it[1], it[2], it[3]]},
+        reference.collect(),
+        ch_pool_trimmed_bam_vcf.map{[it[0]]}
+    )
+    ch_versions   = ch_versions.mix(MEDAKA_ANNOTATE.out.versions)
+    ch_medaka_vcf = MEDAKA_ANNOTATE.out.vcf
+
+    //
+    // MODULE: Merge medaka vcfs
+    //
+    ch_vcf_pools = ch_medaka_vcf
         .map{[it[0].id, it[0], it[1], it[0].pool]}
         .groupTuple()
         .map{
@@ -74,53 +106,139 @@ workflow NANOPORE_VARCALL {
         ch_vcf_pools,
         primer_bed
     )
-    ch_merged_vcf = ARTIC_VCF_MERGE.out.vcf
+    ch_medaka_vcf = ARTIC_VCF_MERGE.out.vcf
 
     //
-    // MODULE: Gzip and index VCF
+    // MODULE: Split VCF into pass/fail files passed on filter
     //
-    TABIX_BGZIPTABIX (
-        ch_merged_vcf
+    BCFTOOLS_PASS_FAIL_SPLIT (
+        ch_medaka_vcf
     )
-    ch_versions   = ch_versions.mix(TABIX_BGZIPTABIX.out.versions)
-    ch_vcf_gz_tbi = TABIX_BGZIPTABIX.out.gz_tbi
+    ch_versions   = ch_versions.mix(BCFTOOLS_PASS_FAIL_SPLIT.out.versions)
+    ch_medaka_vcf = BCFTOOLS_PASS_FAIL_SPLIT.out.pass_vcf
+
+    //
+    // MODULE: Gzip and index the consensus VCF
+    //
+    INDEX_CONSEN_VCF (
+        ch_medaka_vcf
+    )
+    ch_versions          = ch_versions.mix(INDEX_CONSEN_VCF.out.versions)
+    ch_medaka_vcf_gz_tbi = INDEX_CONSEN_VCF.out.gz_tbi
+
+    //
+    // MODULE: Make depth mask
+    //
+    ARTIC_MAKE_DEPTH_MASK (
+        primer_trimmed_bam_bai,
+        reference.collect()
+    )
+    ch_depth_mask = ARTIC_MAKE_DEPTH_MASK.out.mask
+
+    //
+    // MODULE: Build a pre-conensus mask of the coverage mask and N's where the failed variants are
+    //
+    ARTIC_MASK (
+        BCFTOOLS_PASS_FAIL_SPLIT.out.fail_vcf,
+        ch_depth_mask,
+        reference.collect()
+    )
+    ch_preconsensus_mask = ARTIC_MASK.out.fasta
+
+    //
+    // MODULE: Call the consensus sequence
+    //
+    ch_vcf_tbi_fasta_mask = ch_medaka_vcf_gz_tbi
+        .map { [it[0].id, it ]}
+        .join ( ch_preconsensus_mask.map { [it[0].id, it[1]] })
+        .join ( ch_depth_mask.map { [it[0].id, it[1]] })
+        .map{ [it[1][0], it[1][1], it[1][2], it[2], it[3]] }
+    BCFTOOLS_CONSENSUS (
+        ch_vcf_tbi_fasta_mask
+    )
+    ch_versions = ch_versions.mix(BCFTOOLS_CONSENSUS.out.versions)
+    ch_consensus = BCFTOOLS_CONSENSUS.out.fasta
+
+
+    // tuple val(meta), path(vcf), path(tbi), path(fasta), path(mask)
+
+    //     cmds.append("bcftools consensus -f %s.preconsensus.fasta %s.gz -m %s.coverage_mask.txt -o %s.consensus.fasta" % (args.sample, vcf_file, args.sample, args.sample))
+
+
+
+
+    //
+    // MODULE: Run clair3 variant caller
+    //
+    // CLAIR3_RUN (
+    //     primer_trimmed_bam_bai,
+    //     reference.collect(),
+    //     clair3_model,
+    //     clair3_platform
+    // )
+    // ch_versions          = ch_versions.mix(INDEX_MERGED_VCF.out.versions)
+    // ch_clair3_vcf_gz_tbi = CLAIR3_RUN.out.merge_output_gz_tbi
+    // ch_clair3_vcf_unzip = CLAIR3_RUN.out.pileup_gz_tbi
+    //                         .mix(CLAIR3_RUN.out.full_alignment_gz_tbi)
+    //                         .mix(CLAIR3_RUN.out.merge_output_gz_tbi)
+
+    //
+    // MODULE: Unzip clair3 VCF files
+    //
+    // GUNZIP_VCF (
+    //     ch_clair3_vcf_unzip.map{[it[0], it[1]]}
+    // )
+    // ch_versions = ch_versions.mix(INDEX_MERGED_VCF.out.versions)
+
 
     //
     // MODULE: Join VCF with reads
     //
-    ch_primer_trimmed_bam_bai_vcf_tbi = primer_trimmed_bam_bai
-    .map { [it[0].id, it ]}
-    .join ( ch_vcf_gz_tbi.map { [it[0].id, it[1], it[2]] })
-    .map{ [it[1][0], it[1][1], it[1][2], it[2], it[3]] }
+    // ch_primer_trimmed_bam_bai_vcf_tbi = primer_trimmed_bam_bai
+    // .map { [it[0].id, it ]}
+    // .join ( ch_medaka_vcf_gz_tbi.map { [it[0].id, it[1], it[2]] })
+    // .map{ [it[1][0], it[1][1], it[1][2], it[2], it[3]] }
+    // //
+    // // MODULE: Call variants with longshot and provide extra metadata
+    // //
+    // LONGSHOT (
+    //     ch_primer_trimmed_bam_bai_vcf_tbi.map{[it[0], it[1], it[2]]},
+    //     ch_primer_trimmed_bam_bai_vcf_tbi.map{[it[0], it[3], it[4]]},
+    //     reference.collect()
+    // )
+    // ch_versions     = ch_versions.mix(LONGSHOT.out.versions)
+    // ch_longshot_vcf = LONGSHOT.out.vcf
+
+    // //
+    // // MODULE: Gzip and index VCF
+    // //
+    // INDEX_LONGSHOT_VCF (
+    //     ch_longshot_vcf
+    // )
+    // ch_versions            = ch_versions.mix(INDEX_LONGSHOT_VCF.out.versions)
+    // ch_longshot_vcf_gz_tbi = INDEX_LONGSHOT_VCF.out.gz_tbi
 
     //
-    // MODULE: Call variants with longshot and provide extra metadata
+    // MODULE: Make depth mask
     //
-    LONGSHOT (
-        ch_primer_trimmed_bam_bai_vcf_tbi.map{[it[0], it[1], it[2]]},
-        ch_primer_trimmed_bam_bai_vcf_tbi.map{[it[0], it[3], it[4]]},
-        reference.collect()
-    )
-    ch_versions = ch_versions.mix(LONGSHOT.out.versions)
-    ch_vcf      = LONGSHOT.out.vcf
+    // ARTIC_MAKE_DEPTH_MASK (
+    //     ch_primer_trimmed_bam_bai_vcf_tbi.map{[it[0], it[1], it[2]]},
+    //     reference.collect()
+    // )
 
+    // SNPEFF_BUILD (
+    //     reference.collect{it[1]},
+    //     gff
+    // )
+
+    // SNPEFF_ANN (
+    //     ch_longshot_vcf,
+    //     SNPEFF_BUILD.out.db.collect(),
+    //     SNPEFF_BUILD.out.config.collect(),
+    //     reference.collect{it[1]}
+    // )
 
     emit:
 
     versions = ch_versions.ifEmpty(null)
 }
-
-
-    // # 8) check and filter the VCFs
-    // ## if using strict, run the vcf checker to remove vars present only once in overlap regions (this replaces the original merged vcf from the previous step)
-    // if args.strict:
-    //     cmds.append("bgzip -f %s.merged.vcf" % (args.sample))
-    //     cmds.append("tabix -p vcf %s.merged.vcf.gz" % (args.sample))
-    //     cmds.append("artic-tools check_vcf --dropPrimerVars --dropOverlapFails --vcfOut %s.merged.filtered.vcf %s.merged.vcf.gz %s 2> %s.vcfreport.txt" % (args.sample, args.sample, bed, args.sample))
-    //     cmds.append("mv %s.merged.filtered.vcf %s.merged.vcf" % (args.sample, args.sample))
-
-    // ## if doing the medaka workflow and longshot required, do it on the merged VCF
-    // if args.medaka and not args.no_longshot:
-    //     cmds.append("bgzip -f %s.merged.vcf" % (args.sample))
-    //     cmds.append("tabix -f -p vcf %s.merged.vcf.gz" % (args.sample))
-    //     cmds.append("longshot -P 0 -F -A --no_haps --bam %s.primertrimmed.rg.sorted.bam --ref %s --out %s.merged.vcf --potential_variants %s.merged.vcf.gz" % (args.sample, ref, args.sample, args.sample))

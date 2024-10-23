@@ -70,6 +70,8 @@ for (param in check_param_list) {
 // Check non-manditory input parameters to see if the files exist if they have been specified
 check_param_list = [
     params.sample_sheet,
+    params.viral_gff,
+    params.viral_gtf,
     params.host_fasta,
     params.host_bwa,
     params.seq_sim_ref_dir,
@@ -127,14 +129,18 @@ workflow {
     ch_versions      = Channel.empty()
     ch_multiqc_files = Channel.empty()
 
-    // Init host fasta and bwa index channels
+    // Init single file channels
     ch_host_fasta     = []
-    ch_host_bwa_index = []
     if(host_fasta) {
         ch_host_fasta = file(host_fasta, checkIfExists: true)
     }
+    ch_host_bwa_index = []
     if(host_bwa) {
         ch_host_bwa_index = file(host_bwa, checkIfExists: true)
+    }
+    ch_viral_gff = Channel.empty()
+    if(params.viral_gff) {
+        ch_viral_gff = file(params.viral_gff, checkIfExists: true)
     }
 
     //
@@ -455,7 +461,10 @@ workflow {
             ch_primer_trimmed_bam_bai,
             ch_primer_bed,
             params.pool_primer_reads,
-            ch_viral_ref_fasta_fai
+            ch_viral_ref_fasta_fai,
+            ch_viral_gff,
+            params.clair3_model,
+            params.clair3_platform
         )
     }
 
