@@ -11,12 +11,9 @@ include { TABIX_BGZIPTABIX as INDEX_CONSEN_VCF } from '../../../modules/nf-core/
 include { ARTIC_MAKE_DEPTH_MASK                } from '../../../modules/local/artic/make_depth_mask/main'
 include { ARTIC_MASK                           } from '../../../modules/local/artic/mask/main'
 include { BCFTOOLS_CONSENSUS                   } from '../../../modules/nf-core/bcftools/consensus/main'
-// include { CLAIR3_RUN                           } from '../../../modules/local/clair3/main'
-// include { GUNZIP as GUNZIP_VCF                 } from '../../../modules/nf-core/gunzip/main'
-
-
-// include { SNPEFF_BUILD                           } from '../../../modules/local/snpeff/build/main'
-// include { SNPEFF_ANN                             } from '../../../modules/local/snpeff/ann/main'
+include { CLAIR3_RUN                           } from '../../../modules/local/clair3/main'
+include { GUNZIP as GUNZIP_VCF                 } from '../../../modules/nf-core/gunzip/main'
+include { LOFREQ_CALL                          } from '../../../modules/local/lofreq/call/main'
 
 workflow NANOPORE_VARCALL {
     take:
@@ -26,8 +23,8 @@ workflow NANOPORE_VARCALL {
     val_pool_reads         // val
     reference              // channel: [ val(meta), path(fasta), path(fai) ]
     gff                    // file
-    clair3_model
-    clair3_platform
+    clair3_model           // val
+    clair3_platform        // val
 
     main:
     ch_versions = Channel.empty()
@@ -159,86 +156,45 @@ workflow NANOPORE_VARCALL {
     ch_versions = ch_versions.mix(BCFTOOLS_CONSENSUS.out.versions)
     ch_consensus = BCFTOOLS_CONSENSUS.out.fasta
 
-
-    // tuple val(meta), path(vcf), path(tbi), path(fasta), path(mask)
-
-    //     cmds.append("bcftools consensus -f %s.preconsensus.fasta %s.gz -m %s.coverage_mask.txt -o %s.consensus.fasta" % (args.sample, vcf_file, args.sample, args.sample))
-
-
-
+    // TODO Adjust header with proper fasta header
 
     //
-    // MODULE: Run clair3 variant caller
+    // MODULE: Run clair3 variant caller for more accurate variant calling
     //
-    // CLAIR3_RUN (
-    //     primer_trimmed_bam_bai,
-    //     reference.collect(),
-    //     clair3_model,
-    //     clair3_platform
-    // )
-    // ch_versions          = ch_versions.mix(INDEX_MERGED_VCF.out.versions)
-    // ch_clair3_vcf_gz_tbi = CLAIR3_RUN.out.merge_output_gz_tbi
-    // ch_clair3_vcf_unzip = CLAIR3_RUN.out.pileup_gz_tbi
-    //                         .mix(CLAIR3_RUN.out.full_alignment_gz_tbi)
-    //                         .mix(CLAIR3_RUN.out.merge_output_gz_tbi)
+    CLAIR3_RUN (
+        primer_trimmed_bam_bai,
+        reference.collect(),
+        clair3_model,
+        clair3_platform
+    )
+    ch_versions          = ch_versions.mix(CLAIR3_RUN.out.versions)
+    ch_clair3_vcf_gz_tbi = CLAIR3_RUN.out.merge_output_gz_tbi
+    ch_clair3_vcf_unzip  = CLAIR3_RUN.out.pileup_gz_tbi
+                            .mix(CLAIR3_RUN.out.full_alignment_gz_tbi)
+                            .mix(CLAIR3_RUN.out.merge_output_gz_tbi)
 
     //
     // MODULE: Unzip clair3 VCF files
     //
-    // GUNZIP_VCF (
-    //     ch_clair3_vcf_unzip.map{[it[0], it[1]]}
-    // )
-    // ch_versions = ch_versions.mix(INDEX_MERGED_VCF.out.versions)
-
-
-    //
-    // MODULE: Join VCF with reads
-    //
-    // ch_primer_trimmed_bam_bai_vcf_tbi = primer_trimmed_bam_bai
-    // .map { [it[0].id, it ]}
-    // .join ( ch_medaka_vcf_gz_tbi.map { [it[0].id, it[1], it[2]] })
-    // .map{ [it[1][0], it[1][1], it[1][2], it[2], it[3]] }
-    // //
-    // // MODULE: Call variants with longshot and provide extra metadata
-    // //
-    // LONGSHOT (
-    //     ch_primer_trimmed_bam_bai_vcf_tbi.map{[it[0], it[1], it[2]]},
-    //     ch_primer_trimmed_bam_bai_vcf_tbi.map{[it[0], it[3], it[4]]},
-    //     reference.collect()
-    // )
-    // ch_versions     = ch_versions.mix(LONGSHOT.out.versions)
-    // ch_longshot_vcf = LONGSHOT.out.vcf
-
-    // //
-    // // MODULE: Gzip and index VCF
-    // //
-    // INDEX_LONGSHOT_VCF (
-    //     ch_longshot_vcf
-    // )
-    // ch_versions            = ch_versions.mix(INDEX_LONGSHOT_VCF.out.versions)
-    // ch_longshot_vcf_gz_tbi = INDEX_LONGSHOT_VCF.out.gz_tbi
+    GUNZIP_VCF (
+        ch_clair3_vcf_unzip.map{[it[0], it[1]]}
+    )
+    ch_versions = ch_versions.mix(GUNZIP_VCF.out.versions)
 
     //
-    // MODULE: Make depth mask
+    // MODULE: Call low frequency variants
     //
-    // ARTIC_MAKE_DEPTH_MASK (
-    //     ch_primer_trimmed_bam_bai_vcf_tbi.map{[it[0], it[1], it[2]]},
-    //     reference.collect()
-    // )
-
-    // SNPEFF_BUILD (
-    //     reference.collect{it[1]},
-    //     gff
-    // )
-
-    // SNPEFF_ANN (
-    //     ch_longshot_vcf,
-    //     SNPEFF_BUILD.out.db.collect(),
-    //     SNPEFF_BUILD.out.config.collect(),
-    //     reference.collect{it[1]}
-    // )
+    LOFREQ_CALL (
+        primer_trimmed_bam_bai,
+        reference.collect(),
+    )
+    ch_versions   = ch_versions.mix(LOFREQ_CALL.out.versions)
+    ch_lofreq_vcf = LOFREQ_CALL.out.vcf
 
     emit:
-
-    versions = ch_versions.ifEmpty(null)
+    versions       = ch_versions.ifEmpty(null)
+    consensus      = ch_consensus
+    clair3_vcf_tbi = ch_clair3_vcf_gz_tbi
+    lofreq_vcf     = ch_lofreq_vcf
+    medaka_vcf_tbi = ch_medaka_vcf_gz_tbi
 }

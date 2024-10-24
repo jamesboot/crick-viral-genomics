@@ -8,8 +8,8 @@ process LONGSHOT {
 
     input:
     tuple val(meta), path(bam), path(bai)
-    tuple val(meta2), path(vcf), path(tbi)
     tuple val(meta3), path(fasta), path(fai)
+    tuple val(meta2), path(vcf), path(tbi)
 
     output:
     tuple val(meta), path("*.vcf"), emit: vcf

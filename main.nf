@@ -466,7 +466,30 @@ workflow {
             params.clair3_model,
             params.clair3_platform
         )
+    } else if(params.run_illumina_varcall) {
+
     }
+
+    //
+    // SECTION: Post consenus analysis
+    //
+
+    // Pileup using muscle on the consensus sequences
+    // QUAST
+
+
+
+    // SNPEFF_BUILD (
+    //     reference.collect{it[1]},
+    //     gff
+    // )
+
+    // SNPEFF_ANN (
+    //     ch_longshot_vcf,
+    //     SNPEFF_BUILD.out.db.collect(),
+    //     SNPEFF_BUILD.out.config.collect(),
+    //     reference.collect{it[1]}
+    // )
 
     //
     // CHANNEL: Join bam to bai and ref
@@ -478,13 +501,7 @@ workflow {
     // .map{ [it[1][0], it[1][1], it[2], it[3], it[4]] }
 
 
-    //
-    // MODULE: Call variants
-    //
-    // LOFREQ_CALL (
-    //     ch_bam_bai_fasta_fai.map{[it[0], it[1], it[2]]},
-    //     ch_bam_bai_fasta_fai.map{[it[0], it[3], it[4]]},
-    // )
+
 
     //
     // MODULE: Genome-wide coverage
