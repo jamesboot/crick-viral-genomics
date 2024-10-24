@@ -12,8 +12,11 @@ include { ARTIC_MAKE_DEPTH_MASK                } from '../../../modules/local/ar
 include { ARTIC_MASK                           } from '../../../modules/local/artic/mask/main'
 include { BCFTOOLS_CONSENSUS                   } from '../../../modules/nf-core/bcftools/consensus/main'
 include { CLAIR3_RUN                           } from '../../../modules/local/clair3/main'
-include { GUNZIP as GUNZIP_VCF                 } from '../../../modules/nf-core/gunzip/main'
+include { GUNZIP as GUNZIP_CLAIR3_VCF          } from '../../../modules/nf-core/gunzip/main'
 include { LOFREQ_CALL                          } from '../../../modules/local/lofreq/call/main'
+include { TABIX_BGZIPTABIX as INDEX_LOFREQ_VCF } from '../../../modules/nf-core/tabix/bgziptabix/main'
+include { SNIFFLES                             } from '../../../modules/nf-core/sniffles/main'
+include { GUNZIP as GUNZIP_SNIFFLES_VCF        } from '../../../modules/nf-core/gunzip/main'
 
 workflow NANOPORE_VARCALL {
     take:
@@ -176,10 +179,10 @@ workflow NANOPORE_VARCALL {
     //
     // MODULE: Unzip clair3 VCF files
     //
-    GUNZIP_VCF (
+    GUNZIP_CLAIR3_VCF (
         ch_clair3_vcf_unzip.map{[it[0], it[1]]}
     )
-    ch_versions = ch_versions.mix(GUNZIP_VCF.out.versions)
+    ch_versions = ch_versions.mix(GUNZIP_CLAIR3_VCF.out.versions)
 
     //
     // MODULE: Call low frequency variants
@@ -188,13 +191,49 @@ workflow NANOPORE_VARCALL {
         primer_trimmed_bam_bai,
         reference.collect(),
     )
-    ch_versions   = ch_versions.mix(LOFREQ_CALL.out.versions)
+    // ch_versions   = ch_versions.mix(LOFREQ_CALL.out.versions)
     ch_lofreq_vcf = LOFREQ_CALL.out.vcf
 
+    //
+    // MODULE: Gzip and index the lofreq VCF
+    //
+    INDEX_LOFREQ_VCF (
+        ch_lofreq_vcf
+    )
+    ch_versions       = ch_versions.mix(INDEX_LOFREQ_VCF.out.versions)
+    ch_lofreq_vcf_tbi = INDEX_LOFREQ_VCF.out.gz_tbi
+
+    //
+    // MODULE: Call structural variants
+    //
+    SNIFFLES (
+        primer_trimmed_bam_bai,
+        reference.collect{[it[0], it[1]]},
+        [[],[]],
+        true,
+        false
+    )
+    ch_versions         = ch_versions.mix(SNIFFLES.out.versions)
+    ch_sniffles_vcf_gz  = SNIFFLES.out.vcf
+    ch_sniffles_tbi     = SNIFFLES.out.tbi
+    ch_sniffles_vcf_tbi = ch_sniffles_vcf_gz
+        .map { [it[0].id, it ]}
+        .join ( ch_sniffles_tbi.map { [it[0].id, it[1]] })
+        .map{ [it[1][0], it[1][1], it[2]] }
+
+    //
+    // MODULE: Unzip sniffles VCF files
+    //
+    GUNZIP_SNIFFLES_VCF (
+        ch_sniffles_vcf_gz
+    )
+    ch_versions = ch_versions.mix(GUNZIP_SNIFFLES_VCF.out.versions)
+
     emit:
-    versions       = ch_versions.ifEmpty(null)
-    consensus      = ch_consensus
-    clair3_vcf_tbi = ch_clair3_vcf_gz_tbi
-    lofreq_vcf     = ch_lofreq_vcf
-    medaka_vcf_tbi = ch_medaka_vcf_gz_tbi
+    versions         = ch_versions.ifEmpty(null)
+    consensus        = ch_consensus
+    medaka_vcf_tbi   = ch_medaka_vcf_gz_tbi
+    clair3_vcf_tbi   = ch_clair3_vcf_gz_tbi
+    lofreq_vcf_tbi   = ch_lofreq_vcf_tbi
+    sniffles_vcf_tbi = ch_sniffles_vcf_tbi
 }
