@@ -99,10 +99,14 @@ include { PICARD_MARKDUPLICATES                 } from './modules/nf-core/picard
 include { ARTIC_ALIGN_TRIM                      } from './modules/local/artic/align_trim/main'
 include { SAMTOOLS_INDEX as INDEX_TRIMED        } from './modules/nf-core/samtools/index/main'
 include { SAMTOOLS_INDEX as INDEX_PRIMER_TRIMED } from './modules/nf-core/samtools/index/main'
-
-include { MOSDEPTH                             } from './modules/nf-core/mosdepth/main'
-include { CUSTOM_DUMPSOFTWAREVERSIONS          } from './modules/local/custom_dumpsoftwareversions.nf'
-include { MULTIQC                              } from './modules/nf-core/multiqc/main'
+include { QUAST                                 } from './modules/nf-core/quast/main'
+include { SNPEFF_BUILD                          } from './modules/local/snpeff/build/main'
+include { SNPEFF_ANN                            } from './modules/local/snpeff/ann/main'
+include { MOSDEPTH                              } from './modules/nf-core/mosdepth/main'
+include { LINUX_COMMAND as MERGE_CONSENSUS      } from './modules/local/linux/command/main'
+include { MUSCLE                                } from './modules/nf-core/muscle/main'
+include { CUSTOM_DUMPSOFTWAREVERSIONS           } from './modules/local/custom_dumpsoftwareversions.nf'
+include { MULTIQC                               } from './modules/nf-core/multiqc/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -157,7 +161,8 @@ workflow {
     MERGE_REFS (
         ch_viral_fasta_merge.multiple,
         [],
-        true
+        true,
+        "merged"
     )
     ch_viral_fasta = MERGE_REFS.out.file.mix(ch_viral_fasta_merge.single)
 
@@ -466,52 +471,98 @@ workflow {
             params.clair3_model,
             params.clair3_platform
         )
+        ch_versions  = ch_versions.mix(NANOPORE_VARCALL.out.versions)
+        ch_consensus = NANOPORE_VARCALL.out.consensus
+        ch_variants  = NANOPORE_VARCALL.out.medaka_vcf_tbi
     } else if(params.run_illumina_varcall) {
 
     }
 
     //
-    // SECTION: Post consenus analysis
+    // SECTION: Post consensus analysis
     //
 
-    // Pileup using muscle on the consensus sequences
-    // QUAST
+    //
+    // MODULE: Quast assembly QC
+    //
+    QUAST (
+        ch_consensus,
+        ch_viral_ref,
+        Channel.of(ch_viral_gff).map{[[], it]}
+    )
+    ch_versions = ch_versions.mix(QUAST.out.versions)
 
-
-
-    // SNPEFF_BUILD (
-    //     reference.collect{it[1]},
-    //     gff
-    // )
-
-    // SNPEFF_ANN (
-    //     ch_longshot_vcf,
-    //     SNPEFF_BUILD.out.db.collect(),
-    //     SNPEFF_BUILD.out.config.collect(),
-    //     reference.collect{it[1]}
-    // )
+    //
+    // MODULE: Variant annotation
+    //
+    SNPEFF_BUILD (
+        ch_viral_ref.collect{it[1]},
+        ch_viral_gff
+    )
+    ch_versions = ch_versions.mix(SNPEFF_BUILD.out.versions)
+    SNPEFF_ANN (
+        ch_variants.map{[it[0], it[1]]},
+        SNPEFF_BUILD.out.db.collect(),
+        SNPEFF_BUILD.out.config.collect(),
+        ch_viral_ref.collect{it[1]}
+    )
+    ch_versions = ch_versions.mix(SNPEFF_ANN.out.versions)
 
     //
     // CHANNEL: Join bam to bai and ref
     //
-    // ch_bam_bai_fasta_fai = ch_bam
-    // .map { [it[0].id, it ]}
-    // .join ( ch_bai.map { [it[0].id, it[1]] })
-    // .join ( ch_viral_ref_fasta_fai.map { [it[0].id, it[1], it[2]] })
-    // .map{ [it[1][0], it[1][1], it[2], it[3], it[4]] }
-
-
-
+    ch_bam_bai_fasta_fai = Channel.empty()
+    if(params.assemble_ref) {
+        ch_bam_bai_fasta_fai = ch_primer_trimmed_bam_bai
+            .map { [it[0].id, it ]}
+            .join ( ch_viral_ref_fasta_fai.map { [it[0].id, it[1], it[2]] })
+            .map{ [it[1][0], it[1][1], it[1][2], it[3], it[4]] }
+    } else {
+        ch_bam_bai_fasta_fai = ch_primer_trimmed_bam_bai
+            .combine(ch_viral_ref_fasta_fai)
+            .map{ [it[0], it[1], it[2], it[4][0], it[5]] }
+    }
 
     //
     // MODULE: Genome-wide coverage
     //
-    // MOSDEPTH (
-    //     ch_bam_bai_fasta_fai.map{[it[0], it[1], it[2], []]},
-    //     ch_bam_bai_fasta_fai.map{[it[0], it[3]]},
-    // )
-    // ch_versions      = ch_versions.mix(MOSDEPTH.out.versions)
-    // ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]})
+    MOSDEPTH (
+        ch_bam_bai_fasta_fai.map{[it[0], it[1], it[2], []]},
+        ch_bam_bai_fasta_fai.map{[it[0], it[3]]},
+    )
+    ch_versions      = ch_versions.mix(MOSDEPTH.out.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]})
+
+    //
+    // MODULE: Merge ref and conesensus seq into one file
+    //
+    ch_consensus_fasta_merge = ch_viral_ref
+        .map{it[1]}
+        .mix(ch_consensus.map{it[1]})
+        .flatten()
+        .toSortedList()
+        .map{[[id:"consensus"], it]}
+    MERGE_CONSENSUS (
+        ch_consensus_fasta_merge,
+        [],
+        true,
+        "merged"
+    )
+    ch_merged_consensus = MERGE_CONSENSUS.out.file
+
+    //
+    // MODULE: MSA
+    //
+    MUSCLE (
+        ch_merged_consensus
+    )
+    ch_versions = ch_versions.mix(MUSCLE.out.versions)
+
+    // vcf merging and final variant report + visualisations
+    // pangolin
+    // nextclade
+
+
 
     // TODO
     //

@@ -11,15 +11,16 @@ process LINUX_COMMAND {
     tuple val(meta), path(input)
     path input2
     val copy_input
+    val output_suffix
 
     output:
-    tuple val(meta), path("*.cmd.*"), emit: file
+    tuple val(meta), path("*.${output_suffix}.*"), emit: file
 
     when:
     task.ext.when == null || task.ext.when
 
     script:
-    def prefix   = task.ext.suffix ? "${meta.id}${task.ext.suffix}" : "${meta.id}"
+    def prefix   = task.ext.prefix ?: "${meta.id}"
     def ext      = task.ext.ext ?: 'txt'
     def post_cmd = task.ext.post_cmd ?: 'echo "NO-ARGS"'
     def pre_cmd  = task.ext.pre_cmd ?: ''
@@ -33,6 +34,6 @@ process LINUX_COMMAND {
     """
     $copy_cmd
     $pre_cmd
-    cat $target_files | $post_cmd > ${prefix}.cmd.${ext}
+    cat $target_files | $post_cmd > ${prefix}.${output_suffix}.${ext}
     """
 }

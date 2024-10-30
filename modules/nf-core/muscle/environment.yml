@@ -2,4 +2,4 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - bioconda::ivar=1.4.3
+  - bioconda::muscle=3.8.1551

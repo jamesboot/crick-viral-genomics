@@ -17,6 +17,7 @@ include { LOFREQ_CALL                          } from '../../../modules/local/lo
 include { TABIX_BGZIPTABIX as INDEX_LOFREQ_VCF } from '../../../modules/nf-core/tabix/bgziptabix/main'
 include { SNIFFLES                             } from '../../../modules/nf-core/sniffles/main'
 include { GUNZIP as GUNZIP_SNIFFLES_VCF        } from '../../../modules/nf-core/gunzip/main'
+include { LINUX_COMMAND as RENAME_FASTA        } from '../../../modules/local/linux/command/main'
 
 workflow NANOPORE_VARCALL {
     take:
@@ -228,6 +229,17 @@ workflow NANOPORE_VARCALL {
         ch_sniffles_vcf_gz
     )
     ch_versions = ch_versions.mix(GUNZIP_SNIFFLES_VCF.out.versions)
+
+    //
+    // MODULE: Rename consensus fasta
+    //
+    RENAME_FASTA (
+        ch_consensus,
+        [],
+        true,
+        "consensus"
+    )
+    ch_consensus = RENAME_FASTA.out.file
 
     emit:
     versions         = ch_versions.ifEmpty(null)
