@@ -473,7 +473,8 @@ workflow {
         )
         ch_versions  = ch_versions.mix(NANOPORE_VARCALL.out.versions)
         ch_consensus = NANOPORE_VARCALL.out.consensus
-        ch_variants  = NANOPORE_VARCALL.out.medaka_vcf_tbi
+        // ch_variants  = NANOPORE_VARCALL.out.medaka_vcf_tbi
+        ch_variants  = NANOPORE_VARCALL.out.clair3_vcf_tbi
     } else if(params.run_illumina_varcall) {
 
     }
