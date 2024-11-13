@@ -103,8 +103,12 @@ include { QUAST                                 } from './modules/nf-core/quast/
 include { SNPEFF_BUILD                          } from './modules/local/snpeff/build/main'
 include { SNPEFF_ANN                            } from './modules/local/snpeff/ann/main'
 include { MOSDEPTH                              } from './modules/nf-core/mosdepth/main'
+include { LINUX_COMMAND as MERGE_CONSENSUS_REF  } from './modules/local/linux/command/main'
 include { LINUX_COMMAND as MERGE_CONSENSUS      } from './modules/local/linux/command/main'
 include { MUSCLE                                } from './modules/nf-core/muscle/main'
+include { PANGOLIN                              } from './modules/nf-core/pangolin/main'
+include { NEXTCLADE_DATASETGET                  } from './modules/nf-core/nextclade/datasetget/main'
+include { NEXTCLADE_RUN                         } from './modules/nf-core/nextclade/run/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS           } from './modules/local/custom_dumpsoftwareversions.nf'
 include { MULTIQC                               } from './modules/nf-core/multiqc/main'
 
@@ -473,7 +477,6 @@ workflow {
         )
         ch_versions  = ch_versions.mix(NANOPORE_VARCALL.out.versions)
         ch_consensus = NANOPORE_VARCALL.out.consensus
-        // ch_variants  = NANOPORE_VARCALL.out.medaka_vcf_tbi
         ch_variants  = NANOPORE_VARCALL.out.clair3_vcf_tbi
     } else if(params.run_illumina_varcall) {
 
@@ -537,9 +540,25 @@ workflow {
     //
     // MODULE: Merge ref and conesensus seq into one file
     //
-    ch_consensus_fasta_merge = ch_viral_ref
+    ch_consensus_fasta_merge_ref = ch_viral_ref
         .map{it[1]}
         .mix(ch_consensus.map{it[1]})
+        .flatten()
+        .toSortedList()
+        .map{[[id:"consensus"], it]}
+    MERGE_CONSENSUS_REF (
+        ch_consensus_fasta_merge_ref,
+        [],
+        true,
+        "merged"
+    )
+    ch_merged_consensus_ref = MERGE_CONSENSUS_REF.out.file
+
+    //
+    // MODULE: conesensus seqs into one file
+    //
+    ch_consensus_fasta_merge = ch_consensus
+        .map{it[1]}
         .flatten()
         .toSortedList()
         .map{[[id:"consensus"], it]}
@@ -549,19 +568,47 @@ workflow {
         true,
         "merged"
     )
-    ch_merged_consensus = MERGE_CONSENSUS.out.file
+    ch_merged_consensus = MERGE_CONSENSUS_REF.out.file
 
     //
     // MODULE: MSA
     //
     MUSCLE (
-        ch_merged_consensus
+        ch_merged_consensus_ref
     )
     ch_versions = ch_versions.mix(MUSCLE.out.versions)
 
+    //
+    // MODULE: Pangolin
+    //
+    if(params.run_panglolin) {
+        PANGOLIN (
+            ch_consensus
+        )
+        ch_versions = ch_versions.mix(PANGOLIN.out.versions)
+    }
+
+    if(params.run_nextclade && params.nextclade_dataset_name) {
+        //
+        // MODULE: Get nextclade dataset
+        //
+        NEXTCLADE_DATASETGET (
+            params.nextclade_dataset_name,
+            params.nextclade_dataset_tag ?: []
+        )
+        ch_versions = ch_versions.mix(NEXTCLADE_DATASETGET.out.versions)
+
+        //
+        // MODULE: Run nextclade
+        //
+        NEXTCLADE_RUN (
+            ch_merged_consensus,
+            NEXTCLADE_DATASETGET.out.dataset
+        )
+        ch_versions = ch_versions.mix(NEXTCLADE_RUN.out.versions)
+    }
+
     // vcf merging and final variant report + visualisations
-    // pangolin
-    // nextclade
 
 
 
