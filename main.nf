@@ -109,6 +109,7 @@ include { MUSCLE                                } from './modules/nf-core/muscle
 include { PANGOLIN                              } from './modules/nf-core/pangolin/main'
 include { NEXTCLADE_DATASETGET                  } from './modules/nf-core/nextclade/datasetget/main'
 include { NEXTCLADE_RUN                         } from './modules/nf-core/nextclade/run/main'
+include { VCF_REPORT                            } from './modules/local/vcf_report/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS           } from './modules/local/custom_dumpsoftwareversions.nf'
 include { MULTIQC                               } from './modules/nf-core/multiqc/main'
 
@@ -478,6 +479,7 @@ workflow {
         ch_versions  = ch_versions.mix(NANOPORE_VARCALL.out.versions)
         ch_consensus = NANOPORE_VARCALL.out.consensus
         ch_variants  = NANOPORE_VARCALL.out.clair3_vcf_tbi
+        ch_vcf_files = NANOPORE_VARCALL.out.vcf_files
     } else if(params.run_illumina_varcall) {
 
     }
@@ -491,10 +493,11 @@ workflow {
     //
     QUAST (
         ch_consensus,
-        ch_viral_ref,
-        Channel.of(ch_viral_gff).map{[[], it]}
+        ch_viral_ref.collect(),
+        Channel.of(ch_viral_gff).map{[[], it]}.collect()
     )
-    ch_versions = ch_versions.mix(QUAST.out.versions)
+    ch_versions      = ch_versions.mix(QUAST.out.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(QUAST.out.tsv.collect{it[1]})
 
     //
     // MODULE: Variant annotation
@@ -511,6 +514,7 @@ workflow {
         ch_viral_ref.collect{it[1]}
     )
     ch_versions = ch_versions.mix(SNPEFF_ANN.out.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(SNPEFF_ANN.out.csv.collect{it[1]})
 
     //
     // CHANNEL: Join bam to bai and ref
@@ -608,45 +612,50 @@ workflow {
         ch_versions = ch_versions.mix(NEXTCLADE_RUN.out.versions)
     }
 
-    // vcf merging and final variant report + visualisations
-
-
-
-    // TODO
     //
-    // CHANNEL: Collect topic versions
+    // CHANNEL: Add annotation to list of vcf files and group by sample
     //
-    // ch_topic_versions = Channel.topic('versions') 
-//     | unique()
-//     | map { process, name, version ->
-//       """\
-//       ${process.tokenize(':').last()}:
-//         ${name}: ${version}
-//       """.stripIndent()
-//     
+    ch_vcf_files = ch_vcf_files
+        .mix(SNPEFF_ANN.out.vcf.map{[it[0], it[1], "snpeff", 4]})
+        .groupTuple(by: [0])
+        .map { meta, files, callers, order ->
+                def sorted_files_and_callers = [files, callers].transpose().sort { a, b ->
+                order[callers.indexOf(a[1])] <=> order[callers.indexOf(b[1])]
+            }.transpose()
+            [meta, sorted_files_and_callers[0], sorted_files_and_callers[1]]
+        }
+
+    //
+    // MODULE: Generate VCF report
+    //
+    VCF_REPORT (
+        ch_vcf_files
+    )
 
     //
     // MODULE: Track software versions
     //
-    // CUSTOM_DUMPSOFTWAREVERSIONS (
-    //     ch_versions.unique().collectFile()
-    // )
+    CUSTOM_DUMPSOFTWAREVERSIONS (
+        ch_versions.unique().collectFile()
+    )
 
-    // //
-    // // MODULE: MULTIQC
-    // //
-    // workflow_summary = multiqc_summary(workflow, params)
-    // ch_workflow_summary = Channel.value(workflow_summary)
-    // ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
-    // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
-    // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
+    //
+    // MODULE: MULTIQC
+    //
+    workflow_summary = multiqc_summary(workflow, params)
+    ch_workflow_summary = Channel.value(workflow_summary)
+    ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
+    ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
+    ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
 
-    // MULTIQC (
-    //     ch_multiqc_files.collect(),
-    //     ch_multiqc_config,
-    //     [],
-    //     ch_multiqc_logo
-    // )
+    MULTIQC (
+        ch_multiqc_files.collect(),
+        ch_multiqc_config,
+        [],
+        ch_multiqc_logo,
+        [],
+        []
+    )
 }
 
 /*

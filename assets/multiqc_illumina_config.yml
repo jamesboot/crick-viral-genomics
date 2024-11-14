@@ -21,38 +21,52 @@ run_modules:
   - samtools
   - picard
   - mosdepth
+  - quast
+  - snpeff
 
 module_order:
   - fastqc:
-      name: "FastQC (raw)"
+      name: "READ QC: FastQC (raw)"
       anchor: "fastqc_raw"
       path_filters:
         - "*raw*fastqc.zip"
   - fastp
   - fastqc:
-      name: "FastQC (trimmed)"
+      name: "READ QC: FastQC (trimmed)"
       anchor: "fastqc_trimmed"
       info: "FastQC results after adapter trimming."
       target: ""
       path_filters:
         - "*trimmed*fastqc.zip"
   - samtools:
-      name: "Host Genome Alignment Stats"
+      name: "ALINGMENT: Host Genome Alignment Stats"
       anchor: "samtools_host"
       info: ""
       path_filters:
         - "*host*"
   - samtools:
-      name: "Viral Genome Alignment Stats"
+      name: "ALINGMENT: Viral Genome Alignment Stats"
       anchor: "samtools_viral"
       info: ""
       path_filters:
         - "*viral*"
   - picard:
-      name: "Duplicates"
+      name: "ALIGNMENT: Duplicates"
+      anchor: "picard_dups"
       info: ""
   - mosdepth:
-      name: "Genome Depth"
+      name: "ALIGNMENT: Genome Depth"
+      anchor: "mosdepth"
+      info: ""
+  - quast:
+      name: "VARIANTS: QUAST"
+      anchor: "quast_consensus"
+      info: "This section of the report shows QUAST QC results for the consensus sequence."
+      path_filters:
+        - "*.tsv"
+  - snpeff:
+      anchor: "snpeff_ann"
+      name: "VARIANTS: Snpeff Annotation"
       info: ""
   - custom_content
 

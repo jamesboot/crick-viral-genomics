@@ -60,7 +60,7 @@ workflow NANOPORE_VARCALL {
         ch_pool_trimmed_bam.map{[it[1], it[2], it[3]]},
         ch_pool_trimmed_bam.map{[it[0]]}
     )
-    ch_versions   = ch_versions.mix(MEDAKA_INFERENCE.out.versions)
+    // ch_versions   = ch_versions.mix(MEDAKA_INFERENCE.out.versions)
     ch_medaka_hdf = MEDAKA_INFERENCE.out.hdf
 
     //
@@ -70,7 +70,7 @@ workflow NANOPORE_VARCALL {
         ch_medaka_hdf,
         reference.collect()
     )
-    ch_versions   = ch_versions.mix(MEDAKA_VCF.out.versions)
+    // ch_versions   = ch_versions.mix(MEDAKA_VCF.out.versions)
     ch_medaka_vcf = MEDAKA_VCF.out.vcf
 
     //
@@ -90,7 +90,7 @@ workflow NANOPORE_VARCALL {
         reference.collect(),
         ch_pool_trimmed_bam_vcf.map{[it[0]]}
     )
-    ch_versions   = ch_versions.mix(MEDAKA_ANNOTATE.out.versions)
+    // ch_versions   = ch_versions.mix(MEDAKA_ANNOTATE.out.versions)
     ch_medaka_vcf = MEDAKA_ANNOTATE.out.vcf
 
     //
@@ -183,7 +183,8 @@ workflow NANOPORE_VARCALL {
     GUNZIP_CLAIR3_VCF (
         ch_clair3_vcf_unzip.map{[it[0], it[1]]}
     )
-    ch_versions = ch_versions.mix(GUNZIP_CLAIR3_VCF.out.versions)
+    ch_versions   = ch_versions.mix(GUNZIP_CLAIR3_VCF.out.versions)
+    ch_clair3_vcf = GUNZIP_CLAIR3_VCF.out.gunzip
 
     //
     // MODULE: Call low frequency variants
@@ -241,6 +242,13 @@ workflow NANOPORE_VARCALL {
     )
     ch_consensus = RENAME_FASTA.out.file
 
+    //
+    // CHANNEL: Generate merged vcf report channels
+    //
+    ch_vcf_files = ch_medaka_vcf.map{[it[0], it[1], "medaka", 1]}
+        .mix(ch_clair3_vcf.filter{it[1].toString().contains("merge_output")}.map{[it[0], it[1], "clair3", 2]})
+        .mix(ch_lofreq_vcf.map{[it[0], it[1], "lofreq", 3]})
+
     emit:
     versions         = ch_versions.ifEmpty(null)
     consensus        = ch_consensus
@@ -248,4 +256,5 @@ workflow NANOPORE_VARCALL {
     clair3_vcf_tbi   = ch_clair3_vcf_gz_tbi
     lofreq_vcf_tbi   = ch_lofreq_vcf_tbi
     sniffles_vcf_tbi = ch_sniffles_vcf_tbi
+    vcf_files        = ch_vcf_files
 }
