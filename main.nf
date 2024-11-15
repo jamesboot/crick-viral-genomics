@@ -95,6 +95,7 @@ include { LINUX_COMMAND as MERGE_REFS           } from './modules/local/linux/co
 include { SEQ_SIMULATOR                         } from './modules/local/seq_simulator/main'
 include { SAMPLESHEET_CHECK                     } from './modules/local/samplesheet/check/main'
 include { CAT_FASTQ                             } from './modules/nf-core/cat/fastq/main'
+include { GFF_FLU                               } from './modules/local/gff_flu/main'
 include { ITERATIVE_ALIGNMENT                   } from './modules/local/iterative_alignment/main'
 include { MINIMAP2_INDEX                        } from './modules/nf-core/minimap2/index/main'
 include { MINIMAP2_ALIGN                        } from './modules/nf-core/minimap2/align/main'
@@ -305,7 +306,7 @@ workflow {
     ch_fastq_fasta = Channel.empty()
     if(params.assemble_ref) {
         //
-        // SUBWORKFLOW: Assemble reference
+        // SUBWORKFLOW: Assemble reference from a list of possible references in the viral_fasta
         //
         ASSEMBLE_REFERENCE (
             ch_fastq,
@@ -335,6 +336,19 @@ workflow {
     .map { [it[0].id, it ]}
     .join ( ch_viral_ref_fai.map { [it[0].id, it[1]] })
     .map{ [it[1][0], it[1][1], it[2]] }
+
+    //
+    // SECTION: Annotate ref if able and required
+    //
+
+    //
+    // MODULE: Annotate flu ref
+    //
+    if(!params.viral_gff && params.annotate_flu_ref) {
+        GFF_FLU (
+            ch_viral_ref
+        )
+    }
 
     //
     // SECTION: Alignment

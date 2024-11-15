@@ -93,7 +93,7 @@ workflow ILLUMINA_REMOVE_HOST {
     //
     SAMTOOLS_VIEW_HOST (
         ch_host_bam_bai,
-        ch_host_fasta.collect(),
+        [[],[]],
         []
     )
     ch_versions  = ch_versions.mix(SAMTOOLS_VIEW_HOST.out.versions)
