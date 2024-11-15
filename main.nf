@@ -67,11 +67,15 @@ for (param in check_param_list) {
     }
 }
 
+// If no data being generated, samplesheet is manditory
+if(!params.generate_reads && params.samplesheet == null) {
+     exit 1, "Required parameter not specified: samplesheet"
+}
+
 // Check non-manditory input parameters to see if the files exist if they have been specified
 check_param_list = [
-    params.sample_sheet,
+    params.samplesheet,
     params.viral_gff,
-    params.viral_gtf,
     params.host_fasta,
     params.host_bwa,
     params.seq_sim_ref_dir,
@@ -147,7 +151,7 @@ workflow {
     if(host_bwa) {
         ch_host_bwa_index = file(host_bwa, checkIfExists: true)
     }
-    ch_viral_gff = Channel.empty()
+    ch_viral_gff = []
     if(params.viral_gff) {
         ch_viral_gff = file(params.viral_gff, checkIfExists: true)
     }
@@ -191,11 +195,11 @@ workflow {
     // SECTION: Samplesheet parsing and meta data parsing
     //
     ch_samplesheet   = Channel.empty()
-    if (params.sample_sheet) {
+    if (params.samplesheet) {
         //
         // MODULE: Load samplesheet
         //
-        ch_samplesheet = file(params.sample_sheet, checkIfExists: true)
+        ch_samplesheet = file(params.samplesheet, checkIfExists: true)
         SAMPLESHEET_CHECK (
             ch_samplesheet
         )
@@ -465,6 +469,9 @@ workflow {
     //
     // SECTION: Variant and consensus calling
     //
+    ch_consensus = Channel.empty()
+    ch_variants  = Channel.empty()
+    ch_vcf_files = Channel.empty()
     if(params.run_nanopore_varcall) {
         NANOPORE_VARCALL (
             ch_trimmed_bam_bai,
@@ -500,21 +507,25 @@ workflow {
     ch_multiqc_files = ch_multiqc_files.mix(QUAST.out.tsv.collect{it[1]})
 
     //
-    // MODULE: Variant annotation
+    // MODULE: Variant annotation (only run if annotation provided)
     //
-    SNPEFF_BUILD (
-        ch_viral_ref.collect{it[1]},
-        ch_viral_gff
-    )
-    ch_versions = ch_versions.mix(SNPEFF_BUILD.out.versions)
-    SNPEFF_ANN (
-        ch_variants.map{[it[0], it[1]]},
-        SNPEFF_BUILD.out.db.collect(),
-        SNPEFF_BUILD.out.config.collect(),
-        ch_viral_ref.collect{it[1]}
-    )
-    ch_versions = ch_versions.mix(SNPEFF_ANN.out.versions)
-    ch_multiqc_files = ch_multiqc_files.mix(SNPEFF_ANN.out.csv.collect{it[1]})
+    ch_annotation_vcf = Channel.empty()
+    if(ch_viral_gff) {
+        SNPEFF_BUILD (
+            ch_viral_ref.collect{it[1]},
+            ch_viral_gff
+        )
+        ch_versions = ch_versions.mix(SNPEFF_BUILD.out.versions)
+        SNPEFF_ANN (
+            ch_variants.map{[it[0], it[1]]},
+            SNPEFF_BUILD.out.db.collect(),
+            SNPEFF_BUILD.out.config.collect(),
+            ch_viral_ref.collect{it[1]}
+        )
+        ch_versions      = ch_versions.mix(SNPEFF_ANN.out.versions)
+        ch_multiqc_files = ch_multiqc_files.mix(SNPEFF_ANN.out.csv.collect{it[1]})
+        ch_vcf_files     = ch_vcf_files.mix(SNPEFF_ANN.out.vcf.map{[it[0], it[1], "snpeff", 4]})
+    }
 
     //
     // CHANNEL: Join bam to bai and ref
@@ -613,10 +624,9 @@ workflow {
     }
 
     //
-    // CHANNEL: Add annotation to list of vcf files and group by sample
+    // CHANNEL: Prepare VCF files for report
     //
     ch_vcf_files = ch_vcf_files
-        .mix(SNPEFF_ANN.out.vcf.map{[it[0], it[1], "snpeff", 4]})
         .groupTuple(by: [0])
         .map { meta, files, callers, order ->
                 def sorted_files_and_callers = [files, callers].transpose().sort { a, b ->

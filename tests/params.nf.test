@@ -1,0 +1,35 @@
+nextflow_pipeline {
+
+    name "Test Param Failures"
+    script "../main.nf"
+
+    tag "param_failures"
+
+    test("param_failures_viral_fasta") {
+        tag "param_failures/viral_fasta"
+        then {
+            assertAll (
+                { assert !workflow.success        },
+                { assert workflow.exitStatus != 0 }
+            )
+        }
+    }
+
+    test("param_failures_samplesheet") {
+        tag "param_failures/samplesheet"
+
+        when {
+            params {
+                viral_fasta = "$projectDir/data/refs/covid/SARS-CoV-2.fasta"
+            }
+        }
+
+        then {
+            assertAll (
+                { assert !workflow.success        },
+                { assert workflow.exitStatus != 0 }
+            )
+        }
+    }
+
+}
