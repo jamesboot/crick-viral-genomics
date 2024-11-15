@@ -1,5 +1,4 @@
 nextflow_pipeline {
-
     name "Test Param Failures"
     script "../main.nf"
 
@@ -31,5 +30,4 @@ nextflow_pipeline {
             )
         }
     }
-
 }
