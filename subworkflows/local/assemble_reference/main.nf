@@ -67,7 +67,7 @@ workflow ASSEMBLE_REFERENCE {
     // MODULE: Build reference fasta from top blast hits
     //
     BUILD_REFERENCE_FASTA (
-        viral_fasta,
+        viral_fasta.collect(),
         ch_blast
     )
     ch_viral_ref = BUILD_REFERENCE_FASTA.out.fasta
