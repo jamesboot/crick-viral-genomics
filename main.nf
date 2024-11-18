@@ -68,7 +68,7 @@ for (param in check_param_list) {
 }
 
 // If no data being generated, samplesheet is manditory
-if(!params.generate_reads && params.samplesheet == null) {
+if(!params.run_generate_reads && params.samplesheet == null) {
      exit 1, "Required parameter not specified: samplesheet"
 }
 
@@ -91,32 +91,34 @@ for (param in check_param_list) { if (param) { file(param, checkIfExists: true) 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { LINUX_COMMAND as MERGE_REFS           } from './modules/local/linux/command/main'
-include { SEQ_SIMULATOR                         } from './modules/local/seq_simulator/main'
-include { SAMPLESHEET_CHECK                     } from './modules/local/samplesheet/check/main'
-include { CAT_FASTQ                             } from './modules/nf-core/cat/fastq/main'
-include { GFF_FLU                               } from './modules/local/gff_flu/main'
-include { ITERATIVE_ALIGNMENT                   } from './modules/local/iterative_alignment/main'
-include { MINIMAP2_INDEX                        } from './modules/nf-core/minimap2/index/main'
-include { MINIMAP2_ALIGN                        } from './modules/nf-core/minimap2/align/main'
-include { SAMTOOLS_FAIDX                        } from './modules/nf-core/samtools/faidx/main'
-include { PICARD_MARKDUPLICATES                 } from './modules/nf-core/picard/markduplicates/main'
-include { ARTIC_ALIGN_TRIM                      } from './modules/local/artic/align_trim/main'
-include { SAMTOOLS_INDEX as INDEX_TRIMED        } from './modules/nf-core/samtools/index/main'
-include { SAMTOOLS_INDEX as INDEX_PRIMER_TRIMED } from './modules/nf-core/samtools/index/main'
-include { QUAST                                 } from './modules/nf-core/quast/main'
-include { SNPEFF_BUILD                          } from './modules/local/snpeff/build/main'
-include { SNPEFF_ANN                            } from './modules/local/snpeff/ann/main'
-include { MOSDEPTH                              } from './modules/nf-core/mosdepth/main'
-include { LINUX_COMMAND as MERGE_CONSENSUS_REF  } from './modules/local/linux/command/main'
-include { LINUX_COMMAND as MERGE_CONSENSUS      } from './modules/local/linux/command/main'
-include { MUSCLE                                } from './modules/nf-core/muscle/main'
-include { PANGOLIN                              } from './modules/nf-core/pangolin/main'
-include { NEXTCLADE_DATASETGET                  } from './modules/nf-core/nextclade/datasetget/main'
-include { NEXTCLADE_RUN                         } from './modules/nf-core/nextclade/run/main'
-include { VCF_REPORT                            } from './modules/local/vcf_report/main'
-include { CUSTOM_DUMPSOFTWAREVERSIONS           } from './modules/local/custom_dumpsoftwareversions.nf'
-include { MULTIQC                               } from './modules/nf-core/multiqc/main'
+include { LINUX_COMMAND as MERGE_REFS            } from './modules/local/linux/command/main'
+include { SEQ_SIMULATOR                          } from './modules/local/seq_simulator/main'
+include { SAMPLESHEET_CHECK                      } from './modules/local/samplesheet/check/main'
+include { CAT_FASTQ                              } from './modules/nf-core/cat/fastq/main'
+include { GFF_FLU                                } from './modules/local/gff_flu/main'
+include { ITERATIVE_ALIGNMENT                    } from './modules/local/iterative_alignment/main'
+include { MINIMAP2_INDEX                         } from './modules/nf-core/minimap2/index/main'
+include { MINIMAP2_ALIGN                         } from './modules/nf-core/minimap2/align/main'
+include { SAMTOOLS_FAIDX                         } from './modules/nf-core/samtools/faidx/main'
+include { PICARD_MARKDUPLICATES                  } from './modules/nf-core/picard/markduplicates/main'
+include { ARTIC_ALIGN_TRIM                       } from './modules/local/artic/align_trim/main'
+include { SAMTOOLS_SORT as SORT_PRIMER_TRIMMED   } from './modules/nf-core/samtools/sort/main'
+include { SAMTOOLS_INDEX as INDEX_TRIMMED        } from './modules/nf-core/samtools/index/main'
+include { SAMTOOLS_INDEX as INDEX_PRIMER_TRIMMED } from './modules/nf-core/samtools/index/main'
+include { IVAR_TRIM                              } from './modules/nf-core/ivar/trim/main'
+include { QUAST                                  } from './modules/nf-core/quast/main'
+include { SNPEFF_BUILD                           } from './modules/local/snpeff/build/main'
+include { SNPEFF_ANN                             } from './modules/local/snpeff/ann/main'
+include { MOSDEPTH                               } from './modules/nf-core/mosdepth/main'
+include { LINUX_COMMAND as MERGE_CONSENSUS_REF   } from './modules/local/linux/command/main'
+include { LINUX_COMMAND as MERGE_CONSENSUS       } from './modules/local/linux/command/main'
+include { MUSCLE                                 } from './modules/nf-core/muscle/main'
+include { PANGOLIN                               } from './modules/nf-core/pangolin/main'
+include { NEXTCLADE_DATASETGET                   } from './modules/nf-core/nextclade/datasetget/main'
+include { NEXTCLADE_RUN                          } from './modules/nf-core/nextclade/run/main'
+include { VCF_REPORT                             } from './modules/local/vcf_report/main'
+include { CUSTOM_DUMPSOFTWAREVERSIONS            } from './modules/local/custom_dumpsoftwareversions.nf'
+include { MULTIQC                                } from './modules/nf-core/multiqc/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -129,7 +131,7 @@ include { FASTQ_NANOPORE_QC_TRIM                          } from './subworkflows
 include { ILLUMINA_REMOVE_HOST                            } from './subworkflows/local/illumina_remove_host/main'
 include { ASSEMBLE_REFERENCE                              } from './subworkflows/local/assemble_reference/main'
 include { BAM_SORT_STATS_SAMTOOLS as BAM_VIRAL_SORT_STATS } from './subworkflows/nf-core/bam_sort_stats_samtools/main'
-// include { PREPARE_PRIMERS                                 } from './subworkflows/local/prepare_primers/main'
+include { PREPARE_PRIMERS                                 } from './subworkflows/local/prepare_primers/main'
 include { NANOPORE_VARCALL                                } from './subworkflows/local/nanopore_varcall/main'
 
 /*
@@ -180,7 +182,7 @@ workflow {
     // MODULE: Generate fake reads if required
     //
     ch_fastq = Channel.empty()
-    if(params.generate_reads) {
+    if(params.run_generate_reads) {
         ch_seq_sim_refs   = Channel.from(file(params.seq_sim_ref_dir, checkIfExists: true))
         ch_seq_sim_config = file(params.seq_sim_config, checkIfExists: true)
         SEQ_SIMULATOR (
@@ -214,14 +216,13 @@ workflow {
             it.single_end = true
             def read1 = file(it.read1, checkIfExists: true)
             it.remove("read1")
-            it.remove("read2")
             def read2 = null
             if(it.read2) {
                 read2 = file(it.read2, checkIfExists: true)
                 it.single_end = false
+                it.remove("read2")
             }
-
-            if (it.read2) {
+            if (read2) {
                 [it, [read1, read2]]
             }
             else {
@@ -286,7 +287,7 @@ workflow {
     //
     // SUBWORKFLOW: Remove host reads
     //
-    if(params.remove_host_reads) {
+    if(params.run_remove_host_reads) {
         ILLUMINA_REMOVE_HOST (
             ch_fastq,
             ch_host_fasta,
@@ -304,7 +305,7 @@ workflow {
     //
     ch_viral_ref   = Channel.empty()
     ch_fastq_fasta = Channel.empty()
-    if(params.assemble_ref) {
+    if(params.run_assemble_ref) {
         //
         // SUBWORKFLOW: Assemble reference from a list of possible references in the viral_fasta
         //
@@ -345,9 +346,9 @@ workflow {
     // MODULE: Annotate flu ref
     //
     if(!params.viral_gff && params.annotate_flu_ref) {
-        GFF_FLU (
-            ch_viral_ref
-        )
+        // GFF_FLU (
+        //     ch_viral_ref
+        // )
     }
 
     //
@@ -366,8 +367,6 @@ workflow {
         ch_bai            = ITERATIVE_ALIGNMENT.out.bai
         ch_consensus_wref = ITERATIVE_ALIGNMENT.out.consensus_wref
         ch_consensus_wn   = ITERATIVE_ALIGNMENT.out.consensus_wn
-        ch_final_ref      = ITERATIVE_ALIGNMENT.out.final_ref
-        ch_align_metrics  = ITERATIVE_ALIGNMENT.out.metrics
     }
     else if(params.run_bwa_align) {
 
@@ -426,16 +425,29 @@ workflow {
     ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
 
     //
+    // CHANNEL: Join bam to bai
+    //
+    ch_bam_bai = ch_bam
+    .map { [it[0].id, it ]}
+    .join ( ch_bai.map { [it[0].id, it[1]] })
+    .map{ [it[1][0], it[1][1], it[2]] }
+
+    //
     // SECTION: Primer pre-processing
     //
     ch_primer_bed = Channel.empty()
-    if(params.primers_fasta && params.primers_csv) {
-        // PREPARE_PRIMERS (
-        //     ch_viral_ref,
-        //     file(params.primers_fasta),
-        //     file(params.primers_csv)
-        // )
-        // ch_versions = ch_versions.mix(PREPARE_PRIMERS.out.versions)
+    if(!params.primers_bed && params.primers_fasta && params.primers_csv) {
+        ch_primer_ref = ch_viral_ref
+        if(params.run_iterative_align) {
+            ch_primer_ref = ch_consensus_wref
+        }
+        PREPARE_PRIMERS (
+            ch_primer_ref,
+            file(params.primers_fasta),
+            file(params.primers_csv)
+        )
+        ch_versions   = ch_versions.mix(PREPARE_PRIMERS.out.versions)
+        ch_primer_bed = PREPARE_PRIMERS.out.primer_bed
     } else if(params.primers_bed) {
         ch_primer_bed = Channel.from(file(params.primers_bed, checkIfExists: true)).collect()
     }
@@ -443,10 +455,10 @@ workflow {
     //
     // SECTION: Primer trimming
     //
-    ch_trimmed_bam            = Channel.empty()
-    ch_primer_trimmed_bam     = Channel.empty()
-    ch_trimmed_bai        = Channel.empty()
-    ch_primer_trimmed_bai = Channel.empty()
+    ch_trimmed_bam        = ch_bam
+    ch_primer_trimmed_bam = ch_bam
+    ch_trimmed_bai        = ch_bai
+    ch_primer_trimmed_bai = ch_bai
     if(params.run_artic_primer_trim) {
         //
         // MODULE: Trim primers from reads and assig read group to primer pool
@@ -461,10 +473,44 @@ workflow {
         //
         // MODULE: Index the trimmed reads
         //
-        INDEX_TRIMED ( ch_trimmed_bam )
+        INDEX_TRIMMED ( ch_trimmed_bam )
         INDEX_PRIMER_TRIMED ( ch_primer_trimmed_bam )
-        ch_trimmed_bai = INDEX_TRIMED.out.bai
+        ch_trimmed_bai = INDEX_TRIMMED.out.bai
         ch_primer_trimmed_bai = INDEX_PRIMER_TRIMED.out.bai
+    }
+    else if(params.run_ivar_primer_trim) {
+        //
+        // CHANNEL: merge bam/bai with primer beds if we did iterative align
+        //
+        ch_ivar_bam_bai = ch_bam_bai
+        ch_ivar_primer_bed = ch_primer_bed
+        if(params.run_iterative_align) {
+            ch_ivar_input = ch_bam_bai
+                .map{[it[0].id, it]}
+                .join(ch_primer_bed.map{[it[0].id, it[1]]})
+                .map{ [it[1][0], it[1][1], it[1][2], it[2]] }
+            ch_ivar_bam_bai = ch_ivar_input.map{[it[0], it[1], it[2]]}
+            ch_ivar_primer_bed = ch_ivar_input.map{[it[3]]}
+        }
+
+        //
+        // MODULE: Trim primers using ivar
+        //
+        IVAR_TRIM (
+            ch_ivar_bam_bai,
+            ch_ivar_primer_bed
+        )
+        ch_versions           = ch_versions.mix(IVAR_TRIM.out.versions)
+        ch_trimmed_bam        = IVAR_TRIM.out.bam
+        ch_primer_trimmed_bam = IVAR_TRIM.out.bam
+
+        //
+        // MODULE: Sort and Index the trimmed reads
+        //
+        SORT_PRIMER_TRIMMED ( ch_trimmed_bam, [[],[]] )
+        INDEX_PRIMER_TRIMMED ( SORT_PRIMER_TRIMMED.out.bam )
+        ch_primer_trimmed_bam = SORT_PRIMER_TRIMMED.out.bam
+        ch_primer_trimmed_bai = INDEX_PRIMER_TRIMMED.out.bai
     }
 
     //
@@ -502,7 +548,7 @@ workflow {
         ch_variants  = NANOPORE_VARCALL.out.clair3_vcf_tbi
         ch_vcf_files = NANOPORE_VARCALL.out.vcf_files
     } else if(params.run_illumina_varcall) {
-
+        // Check if we ran iter align as the consensus is already called here, or do we want to do it again? 
     }
 
     //
@@ -514,7 +560,7 @@ workflow {
     //
     QUAST (
         ch_consensus,
-        ch_viral_ref.collect(),
+        ch_viral_ref,
         Channel.of(ch_viral_gff).map{[[], it]}.collect()
     )
     ch_versions      = ch_versions.mix(QUAST.out.versions)
@@ -526,15 +572,15 @@ workflow {
     ch_annotation_vcf = Channel.empty()
     if(ch_viral_gff) {
         SNPEFF_BUILD (
-            ch_viral_ref.collect{it[1]},
+            ch_viral_ref,
             ch_viral_gff
         )
         ch_versions = ch_versions.mix(SNPEFF_BUILD.out.versions)
         SNPEFF_ANN (
             ch_variants.map{[it[0], it[1]]},
-            SNPEFF_BUILD.out.db.collect(),
-            SNPEFF_BUILD.out.config.collect(),
-            ch_viral_ref.collect{it[1]}
+            SNPEFF_BUILD.out.db,
+            SNPEFF_BUILD.out.config,
+            ch_viral_ref
         )
         ch_versions      = ch_versions.mix(SNPEFF_ANN.out.versions)
         ch_multiqc_files = ch_multiqc_files.mix(SNPEFF_ANN.out.csv.collect{it[1]})
@@ -545,7 +591,7 @@ workflow {
     // CHANNEL: Join bam to bai and ref
     //
     ch_bam_bai_fasta_fai = Channel.empty()
-    if(params.assemble_ref) {
+    if(params.run_assemble_ref) {
         ch_bam_bai_fasta_fai = ch_primer_trimmed_bam_bai
             .map { [it[0].id, it ]}
             .join ( ch_viral_ref_fasta_fai.map { [it[0].id, it[1], it[2]] })

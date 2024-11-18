@@ -16,11 +16,6 @@ process GFF_FLU {
     // def prefix = task.ext.prefix ?: "${meta.id}"
 
     """
-    lofreq call-parallel \\
-        --pp-threads $task.cpus \\
-        -f $fasta \\
-        $args \\
-        -o ${prefix}.vcf \\
-        $bam
+    gfflu $fasta
     """
 }
