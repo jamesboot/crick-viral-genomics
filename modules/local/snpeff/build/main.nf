@@ -2,14 +2,13 @@ process SNPEFF_BUILD {
     tag "$fasta"
     label 'process_low'
 
-    conda "bioconda::snpeff=5.0"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://depot.galaxyproject.org/singularity/snpeff:5.0--hdfd78af_1' :
         'quay.io/biocontainers/snpeff:5.0--hdfd78af_1' }"
 
     input:
-    path fasta
-    path gff
+    tuple val(meta), path(fasta)
+    tuple val(meta2), path(gff)
 
     output:
     path 'snpeff_db'   , emit: db

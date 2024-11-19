@@ -599,7 +599,7 @@ workflow {
     if(ch_viral_gff) {
         SNPEFF_BUILD (
             ch_viral_ref,
-            ch_viral_gff
+            Channel.of(ch_viral_gff).map{[[], it]}.collect()
         )
         ch_versions = ch_versions.mix(SNPEFF_BUILD.out.versions)
         SNPEFF_ANN (
