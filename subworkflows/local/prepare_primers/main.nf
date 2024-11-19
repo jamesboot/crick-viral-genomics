@@ -26,7 +26,7 @@ workflow PREPARE_PRIMERS {
     ch_blastdb  = BLAST_MAKEBLASTDB.out.db
 
     //
-    // MODULE: Blast contigs against ref
+    // MODULE: Blast primers against ref
     //
     BLAST_BLASTN (
         [[id:"primers"], primers_fasta],

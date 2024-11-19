@@ -80,6 +80,7 @@ check_param_list = [
     params.host_bwa,
     params.seq_sim_ref_dir,
     params.seq_sim_config,
+    params.primers_bed,
     params.primers_fasta,
     params.primers_csv
 ]
@@ -133,6 +134,7 @@ include { ASSEMBLE_REFERENCE                              } from './subworkflows
 include { BAM_SORT_STATS_SAMTOOLS as BAM_VIRAL_SORT_STATS } from './subworkflows/nf-core/bam_sort_stats_samtools/main'
 include { PREPARE_PRIMERS                                 } from './subworkflows/local/prepare_primers/main'
 include { NANOPORE_VARCALL                                } from './subworkflows/local/nanopore_varcall/main'
+include { ILLUMINA_VARCALL                                } from './subworkflows/local/illumina_varcall/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -474,9 +476,9 @@ workflow {
         // MODULE: Index the trimmed reads
         //
         INDEX_TRIMMED ( ch_trimmed_bam )
-        INDEX_PRIMER_TRIMED ( ch_primer_trimmed_bam )
+        INDEX_PRIMER_TRIMMED ( ch_primer_trimmed_bam )
         ch_trimmed_bai = INDEX_TRIMMED.out.bai
-        ch_primer_trimmed_bai = INDEX_PRIMER_TRIMED.out.bai
+        ch_primer_trimmed_bai = INDEX_PRIMER_TRIMMED.out.bai
     }
     else if(params.run_ivar_primer_trim) {
         //
@@ -527,6 +529,21 @@ workflow {
     .map{ [it[1][0], it[1][1], it[2]] }
 
     //
+    // CHANNEL: Join bam to bai and ref
+    //
+    ch_bam_bai_fasta_fai = Channel.empty()
+    if(params.run_assemble_ref) {
+        ch_bam_bai_fasta_fai = ch_primer_trimmed_bam_bai
+            .map { [it[0].id, it ]}
+            .join ( ch_viral_ref_fasta_fai.map { [it[0].id, it[1], it[2]] })
+            .map{ [it[1][0], it[1][1], it[1][2], it[2], it[3]] }
+    } else {
+        ch_bam_bai_fasta_fai = ch_primer_trimmed_bam_bai
+            .combine(ch_viral_ref_fasta_fai)
+            .map{ [it[0], it[1], it[2], it[4][0], it[5]] }
+    }
+
+    //
     // SECTION: Variant and consensus calling
     //
     ch_consensus = Channel.empty()
@@ -539,7 +556,6 @@ workflow {
             ch_primer_bed,
             params.pool_primer_reads,
             ch_viral_ref_fasta_fai,
-            ch_viral_gff,
             params.clair3_model,
             params.clair3_platform
         )
@@ -548,7 +564,17 @@ workflow {
         ch_variants  = NANOPORE_VARCALL.out.clair3_vcf_tbi
         ch_vcf_files = NANOPORE_VARCALL.out.vcf_files
     } else if(params.run_illumina_varcall) {
-        // Check if we ran iter align as the consensus is already called here, or do we want to do it again? 
+        ch_varcall_ref = ch_viral_ref_fasta_fai
+        if(!params.run_assemble_ref) {
+            ch_varcall_ref = ch_viral_ref_fasta_fai.collect()
+        }
+        ILLUMINA_VARCALL(
+            ch_bam_bai_fasta_fai
+        )
+        ch_versions  = ch_versions.mix(ILLUMINA_VARCALL.out.versions)
+        ch_consensus = ILLUMINA_VARCALL.out.consensus
+        ch_variants  = ILLUMINA_VARCALL.out.lofreq_vcf_tbi
+        ch_vcf_files = ILLUMINA_VARCALL.out.vcf_files
     }
 
     //
@@ -585,21 +611,6 @@ workflow {
         ch_versions      = ch_versions.mix(SNPEFF_ANN.out.versions)
         ch_multiqc_files = ch_multiqc_files.mix(SNPEFF_ANN.out.csv.collect{it[1]})
         ch_vcf_files     = ch_vcf_files.mix(SNPEFF_ANN.out.vcf.map{[it[0], it[1], "snpeff", 4]})
-    }
-
-    //
-    // CHANNEL: Join bam to bai and ref
-    //
-    ch_bam_bai_fasta_fai = Channel.empty()
-    if(params.run_assemble_ref) {
-        ch_bam_bai_fasta_fai = ch_primer_trimmed_bam_bai
-            .map { [it[0].id, it ]}
-            .join ( ch_viral_ref_fasta_fai.map { [it[0].id, it[1], it[2]] })
-            .map{ [it[1][0], it[1][1], it[1][2], it[3], it[4]] }
-    } else {
-        ch_bam_bai_fasta_fai = ch_primer_trimmed_bam_bai
-            .combine(ch_viral_ref_fasta_fai)
-            .map{ [it[0], it[1], it[2], it[4][0], it[5]] }
     }
 
     //

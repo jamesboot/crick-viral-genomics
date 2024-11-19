@@ -26,7 +26,6 @@ workflow NANOPORE_VARCALL {
     primer_bed             // file
     val_pool_reads         // val
     reference              // channel: [ val(meta), path(fasta), path(fai) ]
-    gff                    // file
     clair3_model           // val
     clair3_platform        // val
 
