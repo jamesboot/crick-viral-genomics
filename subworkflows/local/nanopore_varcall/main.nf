@@ -138,9 +138,13 @@ workflow NANOPORE_VARCALL {
     //
     // MODULE: Build a pre-conensus mask of the coverage mask and N's where the failed variants are
     //
+    ch_artic_mask = BCFTOOLS_PASS_FAIL_SPLIT.out.fail_vcf
+        .map { [it[0].id, it ]}
+        .join ( ch_depth_mask.map { [it[0].id, it[1]] })
+        .map{ [it[1][0], it[1][1], it[2]] }
     ARTIC_MASK (
-        BCFTOOLS_PASS_FAIL_SPLIT.out.fail_vcf,
-        ch_depth_mask,
+        ch_artic_mask.map{[it[0], it[1]]},
+        ch_artic_mask.map{[it[0], it[2]]},
         reference.collect()
     )
     ch_preconsensus_mask = ARTIC_MASK.out.fasta

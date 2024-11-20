@@ -581,6 +581,10 @@ workflow {
     // SECTION: Post consensus analysis
     //
 
+    if(!params.run_assemble_ref) {
+        ch_viral_ref = ch_viral_ref.collect()
+    }
+
     //
     // MODULE: Quast assembly QC
     //
