@@ -96,7 +96,9 @@ include { LINUX_COMMAND as MERGE_REFS            } from './modules/local/linux/c
 include { SEQ_SIMULATOR                          } from './modules/local/seq_simulator/main'
 include { SAMPLESHEET_CHECK                      } from './modules/local/samplesheet/check/main'
 include { CAT_FASTQ                              } from './modules/nf-core/cat/fastq/main'
+include { LINUX_COMMAND as SPLIT_REF             } from './modules/local/linux/command/main'
 include { GFF_FLU                                } from './modules/local/gff_flu/main'
+include { LINUX_COMMAND as MERGE_GFF             } from './modules/local/linux/command/main'
 include { ITERATIVE_ALIGNMENT                    } from './modules/local/iterative_alignment/main'
 include { MINIMAP2_INDEX                         } from './modules/nf-core/minimap2/index/main'
 include { MINIMAP2_ALIGN                         } from './modules/nf-core/minimap2/align/main'
@@ -344,13 +346,43 @@ workflow {
     // SECTION: Annotate ref if able and required
     //
 
-    //
-    // MODULE: Annotate flu ref
-    //
+    // Annotate flu ref
     if(!params.viral_gff && params.annotate_flu_ref) {
-        // GFF_FLU (
-        //     ch_viral_ref
-        // )
+        //
+        // MODULE: Split ref into chunks
+        //
+        SPLIT_REF (
+            ch_viral_ref,
+            [],
+            false,
+            "split"
+        )
+        ch_split_refs = SPLIT_REF.out.file.flatMap 
+        { meta, files ->
+            files.collect { file ->
+                [meta, file]
+                }
+        }
+
+        //
+        // MODULE: Annotate chunks and group back into samples
+        //
+        GFF_FLU (
+            ch_split_refs
+        )
+        ch_grouped_gff = GFF_FLU.out.snpeff_gff
+            .groupTuple(by: [0])
+
+        //
+        // MODULE: Merge GFF
+        //
+        MERGE_GFF (
+            ch_grouped_gff,
+            [],
+            false,
+            "merged"
+        )
+        ch_viral_gff = MERGE_GFF.out.file
     }
 
     //
@@ -581,8 +613,24 @@ workflow {
     // SECTION: Post consensus analysis
     //
 
+    //
+    // CHANNEL: Prep channels for QC
+    //
     if(!params.run_assemble_ref) {
         ch_viral_ref = ch_viral_ref.collect()
+    }
+    if(!params.run_assemble_ref) {
+        ch_viral_gff = Channel.of(ch_viral_gff).map{[[], it]}.collect()
+    } else {
+        ch_con_reg_gff = ch_consensus
+            .map { [it[0].id, it ]}
+            .join ( ch_viral_ref.map { [it[0].id, it[1]] })
+            .join ( ch_viral_gff.map { [it[0].id, it[1]] })
+            .map{ [it[1][0], it[1][1], it[2], it[3]] }
+
+        ch_consensus = ch_con_reg_gff.map{[it[0], it[1]]}
+        ch_viral_ref = ch_con_reg_gff.map{[it[0], it[2]]}
+        ch_viral_gff = ch_con_reg_gff.map{[it[0], it[3]]}
     }
 
     //
@@ -591,7 +639,7 @@ workflow {
     QUAST (
         ch_consensus,
         ch_viral_ref,
-        Channel.of(ch_viral_gff).map{[[], it]}.collect()
+        ch_viral_gff
     )
     ch_versions      = ch_versions.mix(QUAST.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(QUAST.out.tsv.collect{it[1]})
@@ -603,7 +651,7 @@ workflow {
     if(ch_viral_gff) {
         SNPEFF_BUILD (
             ch_viral_ref,
-            Channel.of(ch_viral_gff).map{[[], it]}.collect()
+            ch_viral_gff
         )
         ch_versions = ch_versions.mix(SNPEFF_BUILD.out.versions)
         SNPEFF_ANN (

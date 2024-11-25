@@ -30,10 +30,14 @@ process LINUX_COMMAND {
         copy_cmd = "for file in $input; do cp \"\$file\" \"\$file.copy\"; done"
         target_files = input.collect{ file -> "${file}.copy"}.join(' ')
     }
+    def main_cmd = "cat $target_files | $post_cmd > ${prefix}.${output_suffix}.${ext}"
+    if(task.ext.nofile) {
+        main_cmd = "cat $target_files | $post_cmd"
+    }
 
     """
     $copy_cmd
     $pre_cmd
-    cat $target_files | $post_cmd > ${prefix}.${output_suffix}.${ext}
+    $main_cmd
     """
 }
