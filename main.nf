@@ -644,25 +644,49 @@ workflow {
     ch_versions      = ch_versions.mix(QUAST.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(QUAST.out.tsv.collect{it[1]})
 
-    //
-    // MODULE: Variant annotation (only run if annotation provided)
-    //
     ch_annotation_vcf = Channel.empty()
     if(ch_viral_gff) {
+        //
+        // MODULE: Build snpeff db
+        //
         SNPEFF_BUILD (
             ch_viral_ref,
             ch_viral_gff
         )
         ch_versions = ch_versions.mix(SNPEFF_BUILD.out.versions)
-        SNPEFF_ANN (
-            ch_variants.map{[it[0], it[1]]},
-            SNPEFF_BUILD.out.db,
-            SNPEFF_BUILD.out.config,
-            ch_viral_ref
-        )
-        ch_versions      = ch_versions.mix(SNPEFF_ANN.out.versions)
-        ch_multiqc_files = ch_multiqc_files.mix(SNPEFF_ANN.out.csv.collect{it[1]})
-        ch_vcf_files     = ch_vcf_files.mix(SNPEFF_ANN.out.vcf.map{[it[0], it[1], "snpeff", 4]})
+
+        //
+        // CHANNEL: Matchup channels and annotate
+        //
+        if(!params.run_assemble_ref) {
+            SNPEFF_ANN (
+                ch_variants.map{[it[0], it[1]]},
+                SNPEFF_BUILD.out.db,
+                SNPEFF_BUILD.out.config,
+                ch_viral_ref
+            )
+            ch_versions      = ch_versions.mix(SNPEFF_ANN.out.versions)
+            ch_multiqc_files = ch_multiqc_files.mix(SNPEFF_ANN.out.csv.collect{it[1]})
+            ch_vcf_files     = ch_vcf_files.mix(SNPEFF_ANN.out.vcf.map{[it[0], it[1], "snpeff", 4]})
+        }
+        else if(params.run_assemble_ref) {
+            ch_var_snpeff_ref = ch_variants
+                .map { [it[0].id, it ]}
+                .join ( SNPEFF_BUILD.out.db.map { [it[0].id, it[1]] })
+                .join ( SNPEFF_BUILD.out.config.map { [it[0].id, it[1]] })
+                .join ( ch_viral_ref.map { [it[0].id, it[1]] })
+                .map{ [it[1][0], it[1][1], it[1][2], it[2], it[3], it[4]] }
+
+            SNPEFF_ANN (
+                ch_var_snpeff_ref.map{[it[0], it[1]]},
+                ch_var_snpeff_ref.map{[it[0], it[3]]},
+                ch_var_snpeff_ref.map{[it[0], it[4]]},
+                ch_var_snpeff_ref.map{[it[0], it[5]]}
+            )
+            ch_versions      = ch_versions.mix(SNPEFF_ANN.out.versions)
+            ch_multiqc_files = ch_multiqc_files.mix(SNPEFF_ANN.out.csv.collect{it[1]})
+            ch_vcf_files     = ch_vcf_files.mix(SNPEFF_ANN.out.vcf.map{[it[0], it[1], "snpeff", 4]})
+        }
     }
 
     //

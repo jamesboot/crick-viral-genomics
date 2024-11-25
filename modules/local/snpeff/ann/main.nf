@@ -9,9 +9,9 @@ process SNPEFF_ANN {
 
     input:
     tuple val(meta), path(vcf)
-    path  db
-    path  config
-    tuple val(meta2), path(fasta)
+    tuple val(meta2), path(db)
+    tuple val(meta3), path(config)
+    tuple val(meta4), path(fasta)
 
     output:
     tuple val(meta), path("*.vcf")      , emit: vcf

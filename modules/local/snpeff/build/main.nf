@@ -11,9 +11,9 @@ process SNPEFF_BUILD {
     tuple val(meta2), path(gff)
 
     output:
-    path 'snpeff_db'   , emit: db
-    path '*.config'    , emit: config
-    path "versions.yml", emit: versions
+    tuple val(meta), path('snpeff_db'), emit: db
+    tuple val(meta), path('*.config') , emit: config
+    path "versions.yml"               , emit: versions
 
     when:
     task.ext.when == null || task.ext.when
