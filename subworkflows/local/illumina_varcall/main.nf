@@ -9,7 +9,8 @@ include { ARTIC_MAKE_DEPTH_MASK                } from '../../../modules/local/ar
 include { ARTIC_MASK                           } from '../../../modules/local/artic/mask/main'
 include { BCFTOOLS_CONSENSUS                   } from '../../../modules/nf-core/bcftools/consensus/main'
 include { LINUX_COMMAND as RENAME_FASTA        } from '../../../modules/local/linux/command/main'
-include { IVAR_VARIANTS                        } from '../../../modules/nf-core/ivar/variants/main'
+include { FREEBAYES_CALL                       } from '../../../modules/local/freebayes/call/main'
+include { TABIX_BGZIPTABIX as INDEX_FREEBAYES  } from '../../../modules/nf-core/tabix/bgziptabix/main'
 
 workflow ILLUMINA_VARCALL {
     take:
@@ -17,8 +18,6 @@ workflow ILLUMINA_VARCALL {
 
     main:
     ch_versions = Channel.empty()
-
-    // bam_bai_fasta_fai | view
 
     //
     // MODULE: Link fasta to bam/bai
@@ -102,27 +101,34 @@ workflow ILLUMINA_VARCALL {
     ch_consensus = RENAME_FASTA.out.file
 
     //
-    // MODULE: Call iVar variants
+    // MODULE: Call freebayes variants
     //
-    // IVAR_VARIANTS (
-    //     bam_bai_fasta_fai.map{[it[0], it[1]]},
-    //     bam_bai_fasta_fai.map{[it[3]]},
-    //     bam_bai_fasta_fai.map{[it[4]]},
-    //     [],
-    //     true
-    // )
-    // ch_versions = ch_versions.mix(BCFTOOLS_CONSENSUS.out.versions)
-    // ch_consensus = BCFTOOLS_CONSENSUS.out.fasta
+    FREEBAYES_CALL (
+        bam_bai_fasta_fai.map{[it[0], it[1]]},
+        bam_bai_fasta_fai.map{[it[0], it[3], it[4]]},
+    )
+    ch_versions = ch_versions.mix(FREEBAYES_CALL.out.versions)
+    ch_freebayes = FREEBAYES_CALL.out.vcf
+
+    //
+    // MODULE: Gzip and index the VCF
+    //
+    INDEX_FREEBAYES (
+        ch_freebayes
+    )
+    ch_versions       = ch_versions.mix(INDEX_FREEBAYES.out.versions)
+    ch_freebayes_vcf_tbi = INDEX_FREEBAYES.out.gz_tbi
 
     //
     // CHANNEL: Generate merged vcf report channels
     //
     ch_vcf_files = ch_lofreq_vcf.map{[it[0], it[1], "lofreq", 1]}
-        // .mix(ch_lofreq_vcf.map{[it[0], it[1], "ivar", 3]})
+        .mix(ch_freebayes.map{[it[0], it[1], "freebayes", 2]})
     
     emit:
-    versions         = ch_versions.ifEmpty(null)
-    consensus        = ch_consensus
-    lofreq_vcf_tbi   = ch_lofreq_vcf_tbi
-    vcf_files        = ch_vcf_files
+    versions          = ch_versions.ifEmpty(null)
+    consensus         = ch_consensus
+    lofreq_vcf_tbi    = ch_lofreq_vcf_tbi
+    freebayes_vcf_tbi = ch_freebayes_vcf_tbi
+    vcf_files         = ch_vcf_files
 }
