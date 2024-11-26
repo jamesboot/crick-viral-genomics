@@ -102,6 +102,8 @@ include { LINUX_COMMAND as MERGE_GFF             } from './modules/local/linux/c
 include { ITERATIVE_ALIGNMENT                    } from './modules/local/iterative_alignment/main'
 include { MINIMAP2_INDEX                         } from './modules/nf-core/minimap2/index/main'
 include { MINIMAP2_ALIGN                         } from './modules/nf-core/minimap2/align/main'
+include { BWA_INDEX as BWA_INDEX_VIRUS           } from './modules/nf-core/bwa/index/main'
+include { BWA_MEM as BWA_ALIGN_VIRUS             } from './modules/nf-core/bwa/mem/main'
 include { SAMTOOLS_FAIDX                         } from './modules/nf-core/samtools/faidx/main'
 include { PICARD_MARKDUPLICATES                  } from './modules/nf-core/picard/markduplicates/main'
 include { ARTIC_ALIGN_TRIM                       } from './modules/local/artic/align_trim/main'
@@ -403,7 +405,50 @@ workflow {
         ch_consensus_wn   = ITERATIVE_ALIGNMENT.out.consensus_wn
     }
     else if(params.run_bwa_align) {
+        //
+        // MODULE: BWA index
+        //
+        BWA_INDEX_VIRUS (
+            ch_viral_ref
+        )
+        ch_versions  = ch_versions.mix(BWA_INDEX_VIRUS.out.versions)
+        ch_bwa_index = BWA_INDEX_VIRUS.out.index
 
+        if(params.run_assemble_ref) {
+            //
+            // CHANNEL: BWA align prep for multiple refs
+            //
+            ch_fastq_idx_ref = ch_fastq
+                .map { [it[0].id, it ]}
+                .join ( ch_bwa_index.map { [it[0].id, it[1]] })
+                .join ( ch_viral_ref.map { [it[0].id, it[1]] })
+                .map{ [it[1][0], it[1][1], it[2], it[3]] }
+
+            //
+            // MODULE: BWA align
+            //
+            BWA_ALIGN_VIRUS (
+                ch_fastq_idx_ref.map{[it[0], it[1]]},
+                ch_fastq_idx_ref.map{[it[0], it[2]]},
+                ch_fastq_idx_ref.map{[it[0], it[3]]},
+                true
+            )
+            ch_versions = ch_versions.mix(BWA_ALIGN_VIRUS.out.versions)
+            ch_bam      = BWA_ALIGN_VIRUS.out.bam
+        }
+        else {
+            //
+            // MODULE: BWA align
+            //
+            BWA_ALIGN_VIRUS (
+                ch_fastq,
+                ch_bwa_index,
+                ch_viral_ref,
+                true
+            )
+            ch_versions = ch_versions.mix(BWA_ALIGN_VIRUS.out.versions)
+            ch_bam      = BWA_ALIGN_VIRUS.out.bam
+        }
     }
     else if(params.run_minimap_align) {
         //
