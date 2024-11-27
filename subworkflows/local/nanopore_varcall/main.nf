@@ -196,7 +196,7 @@ workflow NANOPORE_VARCALL {
         primer_trimmed_bam_bai,
         reference.collect(),
     )
-    // ch_versions   = ch_versions.mix(LOFREQ_CALL.out.versions)
+    ch_versions   = ch_versions.mix(LOFREQ_CALL.out.versions)
     ch_lofreq_vcf = LOFREQ_CALL.out.vcf
 
     //

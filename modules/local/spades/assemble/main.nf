@@ -9,7 +9,7 @@ process SPADES_ASSEMBLE {
 
     output:
     tuple val(meta), path("spades/contigs.fasta"), emit: contigs
-    // tuple val("${task.process}"), val('spades'), eval('spades.py --version'), topic: versions
+    path "versions.yml"                          , emit: versions
 
     script:
     def args   = task.ext.args ?: ''
@@ -22,5 +22,10 @@ process SPADES_ASSEMBLE {
         --pe1-2 ${reads[1]} \\
         $args \\
         -o ./spades
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        spades: \$( spades.py --version 2>&1 | sed -n 's/^SPAdes genome assembler v//p' )
+    END_VERSIONS
     """
 }

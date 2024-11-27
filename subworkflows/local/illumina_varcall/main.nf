@@ -30,7 +30,7 @@ workflow ILLUMINA_VARCALL {
         bam_bai_fasta_fai.map{[it[0], it[1], it[2]]},
         bam_bai_fasta_fai.map{[it[0], it[3], it[4]]},
     )
-    // ch_versions   = ch_versions.mix(LOFREQ_CALL.out.versions)
+    ch_versions   = ch_versions.mix(LOFREQ_CALL.out.versions)
     ch_lofreq_vcf = LOFREQ_CALL.out.vcf
 
     //

@@ -10,7 +10,7 @@ process LOFREQ_CALL {
 
     output:
     tuple val(meta), path("*.vcf"), emit: vcf
-    tuple val("${task.process}")  , val('LoFreq'), eval('lofreq version'), topic: versions
+    path "versions.yml"           , emit: versions
 
     script:
     def args   = task.ext.args ?: ''
@@ -23,5 +23,10 @@ process LOFREQ_CALL {
         $args \\
         -o ${prefix}.vcf \\
         $bam
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        lofreq: \$( lofreq version 2>&1 | sed -n 's/^version: //p' )
+    END_VERSIONS
     """
 }

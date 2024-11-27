@@ -11,7 +11,6 @@ process SEQ_SIMULATOR {
 
     output:
     tuple val(meta), path("*.fastq.gz"), emit: fastq
-    tuple val("${task.process}"), val('seq-sim'), eval('seq-sim --version'), topic: versions 
 
     script:
     def args   = task.ext.args ?: ''

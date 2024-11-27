@@ -24,7 +24,8 @@ workflow ASSEMBLE_REFERENCE {
     SPADES_ASSEMBLE (
         fastq
     )
-    ch_contigs = SPADES_ASSEMBLE.out.contigs
+    ch_contigs  = SPADES_ASSEMBLE.out.contigs
+    ch_versions = ch_versions.mix(SPADES_ASSEMBLE.out.versions)
 
     //
     // MODULE: Cluster contigs
