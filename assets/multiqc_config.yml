@@ -23,8 +23,15 @@ run_modules:
   - mosdepth
   - quast
   - snpeff
+  - nextclade
+  - pangolin
 
 module_order:
+  - pangolin:
+      name: "VARIANTS: Pangolin"
+      info: "This section of the report shows Pangolin lineage analysis results for the called variants."
+      path_filters:
+        - "*.pangolin.csv"
   - fastqc:
       name: "READ QC: FastQC (raw)"
       anchor: "fastqc_raw"

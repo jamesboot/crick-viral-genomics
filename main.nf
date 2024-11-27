@@ -19,7 +19,7 @@ include { get_genome_attribute } from './modules/local/util/references/main'
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-ch_multiqc_config = file("$projectDir/assets/multiqc_illumina_config.yml", checkIfExists: true)
+ch_multiqc_config = file("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
 ch_multiqc_logo = file("$projectDir/assets/The_Francis_Crick_Institute_logo.png", checkIfExists: true)
 ch_seq_sim_config = file(params.seq_sim_config, checkIfExists: true)
 
@@ -798,7 +798,8 @@ workflow {
         PANGOLIN (
             ch_consensus
         )
-        ch_versions = ch_versions.mix(PANGOLIN.out.versions)
+        ch_versions      = ch_versions.mix(PANGOLIN.out.versions)
+        ch_multiqc_files = ch_multiqc_files.mix(PANGOLIN.out.report.collect{it[1]})
     }
 
     if(params.run_nextclade && params.nextclade_dataset_name) {
