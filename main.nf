@@ -133,7 +133,7 @@ include { MULTIQC                                } from './modules/nf-core/multi
 
 include { FASTQ_TRIM_FASTP_FASTQC                         } from './subworkflows/nf-core/fastq_trim_fastp_fastqc/main'
 include { FASTQ_NANOPORE_QC_TRIM                          } from './subworkflows/local/fastq_nanopore_qc_trim/main'
-include { ILLUMINA_REMOVE_HOST                            } from './subworkflows/local/illumina_remove_host/main'
+include { REMOVE_HOST                                     } from './subworkflows/local/remove_host/main'
 include { ASSEMBLE_REFERENCE                              } from './subworkflows/local/assemble_reference/main'
 include { BAM_SORT_STATS_SAMTOOLS as BAM_VIRAL_SORT_STATS } from './subworkflows/nf-core/bam_sort_stats_samtools/main'
 include { PREPARE_PRIMERS                                 } from './subworkflows/local/prepare_primers/main'
@@ -152,7 +152,7 @@ workflow {
     ch_multiqc_files = Channel.empty()
 
     // Init single file channels
-    ch_host_fasta     = []
+    ch_host_fasta = []
     if(host_fasta) {
         ch_host_fasta = file(host_fasta, checkIfExists: true)
     }
@@ -293,17 +293,23 @@ workflow {
     //
     // SUBWORKFLOW: Remove host reads
     //
-    if(params.run_remove_host_reads) {
-        ILLUMINA_REMOVE_HOST (
+    if(params.run_remove_host_reads && host_fasta != null) {
+        def remove_host_mode = "illumina"
+        if(params.run_minimap_align) {
+            remove_host_mode = "ont"
+        }
+        REMOVE_HOST (
             ch_fastq,
             ch_host_fasta,
-            ch_host_bwa_index
+            ch_host_bwa_index,
+            remove_host_mode
+
         )
-        ch_versions      = ch_versions.mix(ILLUMINA_REMOVE_HOST.out.versions)
-        ch_fastq         = ILLUMINA_REMOVE_HOST.out.viral_fastq
-        ch_multiqc_files = ch_multiqc_files.mix(ILLUMINA_REMOVE_HOST.out.host_bam_stats.collect{it[1]})
-        ch_multiqc_files = ch_multiqc_files.mix(ILLUMINA_REMOVE_HOST.out.host_bam_flagstat.collect{it[1]})
-        ch_multiqc_files = ch_multiqc_files.mix(ILLUMINA_REMOVE_HOST.out.host_bam_idxstats.collect{it[1]})
+        ch_versions      = ch_versions.mix(REMOVE_HOST.out.versions)
+        ch_fastq         = REMOVE_HOST.out.viral_fastq
+        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_HOST.out.host_bam_stats.collect{it[1]})
+        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_HOST.out.host_bam_flagstat.collect{it[1]})
+        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_HOST.out.host_bam_idxstats.collect{it[1]})
     }
 
     //
