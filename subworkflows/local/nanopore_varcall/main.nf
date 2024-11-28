@@ -24,20 +24,36 @@ workflow NANOPORE_VARCALL {
     trimmed_bam_bai        // channel: [ val(meta), path(bam), path(bai) ]
     primer_trimmed_bam_bai // channel: [ val(meta), path(bam), path(bai) ]
     primer_bed             // file
-    val_pool_reads         // val
+    pool_reads             // val
     reference              // channel: [ val(meta), path(fasta), path(fai) ]
     clair3_model           // val
     clair3_platform        // val
+    multi_ref              // val
 
     main:
     ch_versions = Channel.empty()
 
     //
+    // CHANNEL: join up channels for synced input
+    //
+    primer_trimmed_bam_bai_ref = Channel.empty()
+    if(multi_ref) {
+        primer_trimmed_bam_bai_ref = primer_trimmed_bam_bai
+            .map { [it[0].id, it ]}
+            .join ( reference.map { [it[0].id, it[1], it[2]] })
+            .map{ [it[1][0], it[1][1], it[1][2], it[2], it[3]] }
+    } else {
+        primer_trimmed_bam_bai_ref = primer_trimmed_bam_bai
+            .combine(reference.map{[it[1], it[2]]})
+            .map{ [it[0], it[1], it[2], it[3], it[4]] }
+    }
+
+    //
     // CHANNEL: Get primer pool ids and combine with bam
     //
-    ch_pool_trimmed_bam = Channel.empty()
-    if(val_pool_reads) {
-        ch_pool_trimmed_bam = primer_bed
+    ch_pool_trimmed_bam_bai = Channel.empty()
+    if(pool_reads) {
+        ch_pool_trimmed_bam_bai = primer_bed
         .splitCsv(sep: '\t')
         .map{[it[0][4]]}
         .unique()
@@ -49,25 +65,38 @@ workflow NANOPORE_VARCALL {
             [it[0], newMeta, it[2], it[3]]
         }
     } else {
-        ch_pool_trimmed_bam = trimmed_bam_bai.map{[[], it[0], it[1]]}
+        ch_pool_trimmed_bam_bai = trimmed_bam_bai.map{[it[0].id, it[0], it[1], it[2]]}
     }
 
     //
     // MODULE: Generate inference
     //
     MEDAKA_INFERENCE (
-        ch_pool_trimmed_bam.map{[it[1], it[2], it[3]]},
-        ch_pool_trimmed_bam.map{[it[0]]}
+        ch_pool_trimmed_bam_bai.map{[it[1], it[2], it[3]]},
+        ch_pool_trimmed_bam_bai.map{[it[0]]}
     )
     // ch_versions   = ch_versions.mix(MEDAKA_INFERENCE.out.versions)
     ch_medaka_hdf = MEDAKA_INFERENCE.out.hdf
 
     //
+    // CHANNEL: join up channels for synced input
+    //
+    if(multi_ref) {
+        ch_hdf_ref = ch_medaka_hdf
+            .map { [it[0].id, it ]}
+            .join ( reference.map { [it[0].id, it[1], it[2]] })
+            .map{ [it[1][0], it[1][1], it[2], it[3]] }
+    } else {
+        ch_hdf_ref = ch_medaka_hdf
+            .combine(reference.map{[it[1], it[2]]})
+    }
+
+    //
     // MODULE: Generate vcf
     //
     MEDAKA_VCF (
-        ch_medaka_hdf,
-        reference.collect()
+        ch_hdf_ref.map{[it[0], it[1]]},
+        ch_hdf_ref.map{[it[0], it[2], it[3]]}
     )
     // ch_versions   = ch_versions.mix(MEDAKA_VCF.out.versions)
     ch_medaka_vcf = MEDAKA_VCF.out.vcf
@@ -75,38 +104,50 @@ workflow NANOPORE_VARCALL {
     //
     // MODULE: Join pooled VCF with reads
     //
-    ch_pool_trimmed_bam_vcf = ch_pool_trimmed_bam
+    ch_pool_trimmed_bam_bai_vcf = ch_pool_trimmed_bam_bai
     .map { [it[1].id + "_" + it[1].pool, it ]}
     .join ( ch_medaka_vcf.map { [it[0].id + "_" + it[0].pool, it[1]] })
     .map{ [it[1][0], it[1][1], it[1][2], it[1][3], it[2]] }
+
+    if(multi_ref) {
+        ch_pool_trimmed_bam_bai_vcf_ref = ch_pool_trimmed_bam_bai_vcf
+            .map { [it[1].id, it ]}
+            .join ( reference.map { [it[0].id, it[1], it[2]] })
+            .map{ [it[1][0], it[1][1], it[1][2], it[1][3], it[1][4], it[2], it[3]] }
+    } else {
+        ch_pool_trimmed_bam_bai_vcf_ref = ch_pool_trimmed_bam_bai_vcf
+            .combine(reference.map{[it[1], it[2]]})
+    }
 
     //
     // MODULE: Generate vcf
     //
     MEDAKA_ANNOTATE (
-        ch_pool_trimmed_bam_vcf.map{[it[1], it[4]]},
-        ch_pool_trimmed_bam_vcf.map{[it[1], it[2], it[3]]},
-        reference.collect(),
-        ch_pool_trimmed_bam_vcf.map{[it[0]]}
+        ch_pool_trimmed_bam_bai_vcf_ref.map{[it[1], it[4]]},
+        ch_pool_trimmed_bam_bai_vcf_ref.map{[it[1], it[5], it[6]]},
+        ch_pool_trimmed_bam_bai_vcf_ref.map{[it[1], it[2], it[3]]},
+        ch_pool_trimmed_bam_bai_vcf_ref.map{[it[0]]}
     )
     // ch_versions   = ch_versions.mix(MEDAKA_ANNOTATE.out.versions)
     ch_medaka_vcf = MEDAKA_ANNOTATE.out.vcf
 
-    //
-    // MODULE: Merge medaka vcfs
-    //
-    ch_vcf_pools = ch_medaka_vcf
-        .map{[it[0].id, it[0], it[1], it[0].pool]}
-        .groupTuple()
-        .map{
-            it[1][0].remove('pool')
-            [it[1][0], it[2], it[3]]
-        }
-    ARTIC_VCF_MERGE (
-        ch_vcf_pools,
-        primer_bed
-    )
-    ch_medaka_vcf = ARTIC_VCF_MERGE.out.vcf
+    if(pool_reads) {
+        //
+        // MODULE: Merge medaka vcfs
+        //
+        ch_vcf_pools = ch_medaka_vcf
+            .map{[it[0].id, it[0], it[1], it[0].pool]}
+            .groupTuple()
+            .map{
+                it[1][0].remove('pool')
+                [it[1][0], it[2], it[3]]
+            }
+        ARTIC_VCF_MERGE (
+            ch_vcf_pools,
+            primer_bed
+        )
+        ch_medaka_vcf = ARTIC_VCF_MERGE.out.vcf
+    }
 
     //
     // MODULE: Split VCF into pass/fail files passed on filter
@@ -130,8 +171,8 @@ workflow NANOPORE_VARCALL {
     // MODULE: Make depth mask
     //
     ARTIC_MAKE_DEPTH_MASK (
-        primer_trimmed_bam_bai,
-        reference.collect()
+        primer_trimmed_bam_bai_ref.map{[it[0], it[1], it[2]]},
+        primer_trimmed_bam_bai_ref.map{[it[0], it[3], it[4]]}
     )
     ch_depth_mask = ARTIC_MAKE_DEPTH_MASK.out.mask
 
@@ -142,10 +183,20 @@ workflow NANOPORE_VARCALL {
         .map { [it[0].id, it ]}
         .join ( ch_depth_mask.map { [it[0].id, it[1]] })
         .map{ [it[1][0], it[1][1], it[2]] }
+
+    if(multi_ref) {
+        ch_artic_mask_ref = ch_artic_mask
+            .map { [it[0].id, it ]}
+            .join ( reference.map { [it[0].id, it[1], it[2]] })
+            .map{ [it[1][0], it[1][1], it[1][2], it[2], it[3]] }
+    } else {
+        ch_artic_mask_ref = ch_artic_mask
+            .combine(reference.map{[it[1], it[2]]})
+    }
     ARTIC_MASK (
-        ch_artic_mask.map{[it[0], it[1]]},
-        ch_artic_mask.map{[it[0], it[2]]},
-        reference.collect()
+        ch_artic_mask_ref.map{[it[0], it[1]]},
+        ch_artic_mask_ref.map{[it[0], it[2]]},
+        ch_artic_mask_ref.map{[it[0], it[3], it[4]]},
     )
     ch_preconsensus_mask = ARTIC_MASK.out.fasta
 
@@ -169,8 +220,8 @@ workflow NANOPORE_VARCALL {
     // MODULE: Run clair3 variant caller for more accurate variant calling
     //
     CLAIR3_RUN (
-        primer_trimmed_bam_bai,
-        reference.collect(),
+        primer_trimmed_bam_bai_ref.map{[it[0], it[1], it[2]]},
+        primer_trimmed_bam_bai_ref.map{[it[0], it[3], it[4]]},
         clair3_model,
         clair3_platform
     )
@@ -193,8 +244,8 @@ workflow NANOPORE_VARCALL {
     // MODULE: Call low frequency variants
     //
     LOFREQ_CALL (
-        primer_trimmed_bam_bai,
-        reference.collect(),
+        primer_trimmed_bam_bai_ref.map{[it[0], it[1], it[2]]},
+        primer_trimmed_bam_bai_ref.map{[it[0], it[3], it[4]]},
     )
     ch_versions   = ch_versions.mix(LOFREQ_CALL.out.versions)
     ch_lofreq_vcf = LOFREQ_CALL.out.vcf
@@ -212,8 +263,8 @@ workflow NANOPORE_VARCALL {
     // MODULE: Call structural variants
     //
     SNIFFLES (
-        primer_trimmed_bam_bai,
-        reference.collect{[it[0], it[1]]},
+        primer_trimmed_bam_bai_ref.map{[it[0], it[1], it[2]]},
+        primer_trimmed_bam_bai_ref.map{[it[0], it[3]]},
         [[],[]],
         true,
         false

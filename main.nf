@@ -55,16 +55,19 @@ def summary_params = params_summary_map(workflow, params, params.debug)
 */
 
 // Check manditory input parameters to see if the files exist if they have been specified
-check_param_list = [
-    viral_fasta: params.viral_fasta
-]
-for (param in check_param_list) {
-    if (!param.value) {
-        exit 1, "Required parameter not specified: ${param.key}"
-    }
-    else {
-        file(param.value, checkIfExists: true)
-    }
+// check_param_list = [
+// ]
+// for (param in check_param_list) {
+//     if (!param.value) {
+//         exit 1, "Required parameter not specified: ${param.key}"
+//     }
+//     else {
+//         file(param.value, checkIfExists: true)
+//     }
+// }
+
+if(!params.use_independant_refs && params.viral_fasta == null) {
+     exit 1, "Required parameter not specified: viral_fasta"
 }
 
 // If no data being generated, samplesheet is manditory
@@ -95,6 +98,7 @@ for (param in check_param_list) { if (param) { file(param, checkIfExists: true) 
 include { LINUX_COMMAND as MERGE_REFS            } from './modules/local/linux/command/main'
 include { SEQ_SIMULATOR                          } from './modules/local/seq_simulator/main'
 include { SAMPLESHEET_CHECK                      } from './modules/local/samplesheet/check/main'
+include { LINUX_COMMAND as FORCE_REF_UPPER       } from './modules/local/linux/command/main'
 include { CAT_FASTQ                              } from './modules/nf-core/cat/fastq/main'
 include { LINUX_COMMAND as SPLIT_REF             } from './modules/local/linux/command/main'
 include { GFF_FLU                                } from './modules/local/gff_flu/main'
@@ -151,6 +155,10 @@ workflow {
     ch_versions      = Channel.empty()
     ch_multiqc_files = Channel.empty()
 
+    // Init variables
+    def multi_ref = params.run_assemble_ref || params.use_independant_refs
+    def is_gff    = params.viral_gff != null || params.annotate_flu_ref
+
     // Init single file channels
     ch_host_fasta = []
     if(host_fasta) {
@@ -168,21 +176,24 @@ workflow {
     //
     // MODULE: Concat the reference files into one file
     //
-    ch_viral_fasta_merge = Channel.fromPath(params.viral_fasta).toSortedList().map{[[id:"viral_reference"], it]}
-    .branch {
-        meta, fasta ->
-            single  : fasta.size() == 1
-                return [ meta, fasta.flatten() ]
-            multiple: fasta.size() > 1
-                return [ meta, fasta.flatten() ]
+    ch_viral_fasta = Channel.empty()
+    if(!params.use_independant_refs) {
+        ch_viral_fasta_merge = Channel.fromPath(params.viral_fasta).toSortedList().map{[[id:"viral_reference"], it]}
+        .branch {
+            meta, fasta ->
+                single  : fasta.size() == 1
+                    return [ meta, fasta.flatten() ]
+                multiple: fasta.size() > 1
+                    return [ meta, fasta.flatten() ]
+        }
+        MERGE_REFS (
+            ch_viral_fasta_merge.multiple,
+            [],
+            true,
+            "merged"
+        )
+        ch_viral_fasta = MERGE_REFS.out.file.mix(ch_viral_fasta_merge.single)
     }
-    MERGE_REFS (
-        ch_viral_fasta_merge.multiple,
-        [],
-        true,
-        "merged"
-    )
-    ch_viral_fasta = MERGE_REFS.out.file.mix(ch_viral_fasta_merge.single)
 
     //
     // MODULE: Generate fake reads if required
@@ -232,9 +243,34 @@ workflow {
                 [it, [read1, read2]]
             }
             else {
+                it.remove("read2")
                 [it, [read1]]
             }
         }
+    }
+
+    //
+    // SECTION: Independant reference processing
+    //
+    if(params.use_independant_refs) {
+        ch_viral_fasta = ch_fastq
+            .map{
+                def ref = file(it[0].ref, checkIfExists: true)
+                [[id:it[0].id], [ref]]
+            }
+    }
+
+    //
+    // MODULE: Force ref upper
+    //
+    if(params.force_ref_to_upper) {
+        FORCE_REF_UPPER (
+            ch_viral_fasta,
+            [],
+            false,
+            "upper"
+        )
+        ch_viral_fasta = FORCE_REF_UPPER.out.file
     }
 
     //
@@ -420,7 +456,7 @@ workflow {
         ch_versions  = ch_versions.mix(BWA_INDEX_VIRUS.out.versions)
         ch_bwa_index = BWA_INDEX_VIRUS.out.index
 
-        if(params.run_assemble_ref) {
+        if(multi_ref) {
             //
             // CHANNEL: BWA align prep for multiple refs
             //
@@ -466,19 +502,41 @@ workflow {
         ch_versions    = ch_versions.mix(MINIMAP2_INDEX.out.versions)
         ch_mm2_index   = MINIMAP2_INDEX.out.index
 
-        //
-        // MODULE: Minimap align
-        //
-        MINIMAP2_ALIGN (
-            ch_fastq,
-            ch_mm2_index.collect(),
-            true,
-            false,
-            false,
-            false
-        )
-        ch_versions = ch_versions.mix(MINIMAP2_ALIGN.out.versions)
-        ch_bam      = MINIMAP2_ALIGN.out.bam
+        if(multi_ref) {
+            ch_fastq_mm2_index = ch_fastq
+                .map { [it[0].id, it ]}
+                .join ( ch_mm2_index.map { [it[0].id, it[1]] })
+                .map{ [it[1][0], it[1][1], it[2]] }
+
+            //
+            // MODULE: Minimap align
+            //
+            MINIMAP2_ALIGN (
+                ch_fastq_mm2_index.map{[it[0], it[1]]},
+                ch_fastq_mm2_index.map{[it[0], it[2]]},
+                true,
+                false,
+                false,
+                false
+            )
+            ch_versions = ch_versions.mix(MINIMAP2_ALIGN.out.versions)
+            ch_bam      = MINIMAP2_ALIGN.out.bam
+        }
+        else {
+            //
+            // MODULE: Minimap align
+            //
+            MINIMAP2_ALIGN (
+                ch_fastq,
+                ch_mm2_index.collect(),
+                true,
+                false,
+                false,
+                false
+            )
+            ch_versions = ch_versions.mix(MINIMAP2_ALIGN.out.versions)
+            ch_bam      = MINIMAP2_ALIGN.out.bam
+        }
     }
 
     //
@@ -615,7 +673,7 @@ workflow {
     // CHANNEL: Join bam to bai and ref
     //
     ch_bam_bai_fasta_fai = Channel.empty()
-    if(params.run_assemble_ref) {
+    if(multi_ref) {
         ch_bam_bai_fasta_fai = ch_primer_trimmed_bam_bai
             .map { [it[0].id, it ]}
             .join ( ch_viral_ref_fasta_fai.map { [it[0].id, it[1], it[2]] })
@@ -640,7 +698,8 @@ workflow {
             params.pool_primer_reads,
             ch_viral_ref_fasta_fai,
             params.clair3_model,
-            params.clair3_platform
+            params.clair3_platform,
+            multi_ref
         )
         ch_versions  = ch_versions.mix(NANOPORE_VARCALL.out.versions)
         ch_consensus = NANOPORE_VARCALL.out.consensus
@@ -667,12 +726,11 @@ workflow {
     //
     // CHANNEL: Prep channels for QC
     //
-    if(!params.run_assemble_ref) {
+    if(!multi_ref && is_gff) {
         ch_viral_ref = ch_viral_ref.collect()
-    }
-    if(!params.run_assemble_ref) {
         ch_viral_gff = Channel.of(ch_viral_gff).map{[[], it]}.collect()
-    } else {
+    }
+    else if (multi_ref && is_gff) {
         ch_con_reg_gff = ch_consensus
             .map { [it[0].id, it ]}
             .join ( ch_viral_ref.map { [it[0].id, it[1]] })
@@ -696,7 +754,7 @@ workflow {
     ch_multiqc_files = ch_multiqc_files.mix(QUAST.out.tsv.collect{it[1]})
 
     ch_annotation_vcf = Channel.empty()
-    if(ch_viral_gff) {
+    if(params.viral_gff || params.annotate_flu_ref) {
         //
         // MODULE: Build snpeff db
         //
@@ -709,7 +767,7 @@ workflow {
         //
         // CHANNEL: Matchup channels and annotate
         //
-        if(!params.run_assemble_ref) {
+        if(!multi_ref) {
             SNPEFF_ANN (
                 ch_variants.map{[it[0], it[1]]},
                 SNPEFF_BUILD.out.db,
@@ -720,7 +778,7 @@ workflow {
             ch_multiqc_files = ch_multiqc_files.mix(SNPEFF_ANN.out.csv.collect{it[1]})
             ch_vcf_files     = ch_vcf_files.mix(SNPEFF_ANN.out.vcf.map{[it[0], it[1], "snpeff", 4]})
         }
-        else if(params.run_assemble_ref) {
+        else {
             ch_var_snpeff_ref = ch_variants
                 .map { [it[0].id, it ]}
                 .join ( SNPEFF_BUILD.out.db.map { [it[0].id, it[1]] })
@@ -786,10 +844,12 @@ workflow {
     //
     // MODULE: MSA
     //
-    MUSCLE (
-        ch_merged_consensus_ref
-    )
-    ch_versions = ch_versions.mix(MUSCLE.out.versions)
+    if(params.run_msa) {
+        MUSCLE (
+            ch_merged_consensus_ref
+        )
+        ch_versions = ch_versions.mix(MUSCLE.out.versions)
+    }
 
     //
     // MODULE: Pangolin

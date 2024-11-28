@@ -17,12 +17,7 @@ process LOFREQ_CALL {
     def prefix = task.ext.prefix ?: "${meta.id}"
 
     """
-    lofreq call-parallel \\
-        --pp-threads $task.cpus \\
-        -f $fasta \\
-        $args \\
-        -o ${prefix}.vcf \\
-        $bam
+    lofreq call -f $fasta -o ${prefix}.vcf $bam
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -30,3 +25,6 @@ process LOFREQ_CALL {
     END_VERSIONS
     """
 }
+
+// lofreq call-parallel --pp-threads $task.cpus -f $fasta -o ${prefix}.vcf $bam
+// lofreq call -f $fasta -o ${prefix}.vcf $bam

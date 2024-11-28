@@ -27,8 +27,8 @@ process MEDAKA_ANNOTATE {
         $args \\
         $rg \\
         $vcf \\
-        $bam \\
         $fasta \\
+        $bam \\
         ${prefix}.vcf
 
     cat <<-END_VERSIONS > versions.yml
