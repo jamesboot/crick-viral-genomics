@@ -168,7 +168,7 @@ workflow {
     if(host_bwa) {
         ch_host_bwa_index = file(host_bwa, checkIfExists: true)
     }
-    ch_viral_gff = []
+    ch_viral_gff = [[],[]]
     if(params.viral_gff) {
         ch_viral_gff = file(params.viral_gff, checkIfExists: true)
     }
@@ -726,20 +726,31 @@ workflow {
     //
     // CHANNEL: Prep channels for QC
     //
-    if(!multi_ref && is_gff) {
+    if(!multi_ref) {
         ch_viral_ref = ch_viral_ref.collect()
+    }
+    else {
+        ch_con_ref = ch_consensus
+            .map { [it[0].id, it ]}
+            .join ( ch_viral_ref.map { [it[0].id, it[1]] })
+            .map{ [it[1][0], it[1][1], it[2]] }
+
+        ch_consensus = ch_con_ref.map{[it[0], it[1]]}
+        ch_viral_ref = ch_con_ref.map{[it[0], it[2]]}
+    }
+    if(!multi_ref && is_gff) {
         ch_viral_gff = Channel.of(ch_viral_gff).map{[[], it]}.collect()
     }
     else if (multi_ref && is_gff) {
-        ch_con_reg_gff = ch_consensus
+        ch_con_ref_gff = ch_consensus
             .map { [it[0].id, it ]}
             .join ( ch_viral_ref.map { [it[0].id, it[1]] })
             .join ( ch_viral_gff.map { [it[0].id, it[1]] })
             .map{ [it[1][0], it[1][1], it[2], it[3]] }
 
-        ch_consensus = ch_con_reg_gff.map{[it[0], it[1]]}
-        ch_viral_ref = ch_con_reg_gff.map{[it[0], it[2]]}
-        ch_viral_gff = ch_con_reg_gff.map{[it[0], it[3]]}
+        ch_consensus = ch_con_ref_gff.map{[it[0], it[1]]}
+        ch_viral_ref = ch_con_ref_gff.map{[it[0], it[2]]}
+        ch_viral_gff = ch_con_ref_gff.map{[it[0], it[3]]}
     }
 
     //
