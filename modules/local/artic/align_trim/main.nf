@@ -2,9 +2,7 @@ process ARTIC_ALIGN_TRIM {
     label 'process_single'
     tag "$meta.id"
 
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'oras://community.wave.seqera.io/library/artic_samtools:add476d24521086e':
-        'community.wave.seqera.io/library/artic_samtools:23997b5f9b2e3c39' }"
+    container "community.wave.seqera.io/library/artic_samtools:23997b5f9b2e3c39"
 
     input:
     tuple val(meta), path(bam)
