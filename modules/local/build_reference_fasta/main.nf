@@ -1,7 +1,7 @@
 process BUILD_REFERENCE_FASTA {
     label 'process_single'
 
-    container "docker.io/thecrick/pipetech_genome_tools:latest"
+    container "docker.io/thecrick/pipetech_genome_tools:0.2.22"
 
     input:
     tuple val(meta), path(fasta)

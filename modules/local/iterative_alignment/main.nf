@@ -1,7 +1,7 @@
 process ITERATIVE_ALIGNMENT {
     label 'process_high'
 
-    container "docker.io/thecrick/pipetech_iterative_alignment:latest"
+    container "docker.io/thecrick/pipetech_iterative_alignment:0.2.22"
 
     input:
     tuple val(meta), path(reads), path(ref)
