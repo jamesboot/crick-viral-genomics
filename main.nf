@@ -116,6 +116,8 @@ include { SAMTOOLS_INDEX as INDEX_TRIMMED        } from './modules/nf-core/samto
 include { SAMTOOLS_INDEX as INDEX_PRIMER_TRIMMED } from './modules/nf-core/samtools/index/main'
 include { IVAR_TRIM                              } from './modules/nf-core/ivar/trim/main'
 include { QUAST                                  } from './modules/nf-core/quast/main'
+include { SAMTOOLS_MPILEUP                       } from './modules/nf-core/samtools/mpileup/main'
+include { GEN_COUNT_TABLE                        } from './modules/local/gen_count_table/main'
 include { SNPEFF_BUILD                           } from './modules/local/snpeff/build/main'
 include { SNPEFF_ANN                             } from './modules/local/snpeff/ann/main'
 include { MOSDEPTH                               } from './modules/nf-core/mosdepth/main'
@@ -369,24 +371,6 @@ workflow {
     }
 
     //
-    // MODULE: Index ref
-    //
-    SAMTOOLS_FAIDX (
-        ch_viral_ref,
-        [[],[]]
-    )
-    ch_versions      = ch_versions.mix(SAMTOOLS_FAIDX.out.versions)
-    ch_viral_ref_fai = SAMTOOLS_FAIDX.out.fai
-
-    //
-    // CHANNEL: Join ref to fai
-    //
-    ch_viral_ref_fasta_fai = ch_viral_ref
-    .map { [it[0].id, it ]}
-    .join ( ch_viral_ref_fai.map { [it[0].id, it[1]] })
-    .map{ [it[1][0], it[1][1], it[2]] }
-
-    //
     // SECTION: Annotate ref if able and required
     //
 
@@ -445,6 +429,11 @@ workflow {
         ch_bai            = ITERATIVE_ALIGNMENT.out.bai
         ch_consensus_wref = ITERATIVE_ALIGNMENT.out.consensus_wref
         ch_consensus_wn   = ITERATIVE_ALIGNMENT.out.consensus_wn
+
+        //
+        // CHANNEL: Assign new consensus as ref
+        //
+        ch_viral_ref = ch_consensus_wref
     }
     else if(params.run_bwa_align) {
         //
@@ -538,6 +527,24 @@ workflow {
             ch_bam      = MINIMAP2_ALIGN.out.bam
         }
     }
+
+    //
+    // MODULE: Index ref
+    //
+    SAMTOOLS_FAIDX (
+        ch_viral_ref,
+        [[],[]]
+    )
+    ch_versions      = ch_versions.mix(SAMTOOLS_FAIDX.out.versions)
+    ch_viral_ref_fai = SAMTOOLS_FAIDX.out.fai
+
+    //
+    // CHANNEL: Join ref to fai
+    //
+    ch_viral_ref_fasta_fai = ch_viral_ref
+    .map { [it[0].id, it ]}
+    .join ( ch_viral_ref_fai.map { [it[0].id, it[1]] })
+    .map{ [it[1][0], it[1][1], it[2]] }
 
     //
     // MODULE: Mark duplicates
@@ -706,10 +713,6 @@ workflow {
         ch_variants  = NANOPORE_VARCALL.out.clair3_vcf_tbi
         ch_vcf_files = NANOPORE_VARCALL.out.vcf_files
     } else if(params.run_illumina_varcall) {
-        ch_varcall_ref = ch_viral_ref_fasta_fai
-        if(!params.run_assemble_ref) {
-            ch_varcall_ref = ch_viral_ref_fasta_fai.collect()
-        }
         ILLUMINA_VARCALL(
             ch_bam_bai_fasta_fai
         )
@@ -763,6 +766,22 @@ workflow {
     )
     ch_versions      = ch_versions.mix(QUAST.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(QUAST.out.tsv.collect{it[1]})
+
+    //
+    // MODULE: Calculate the pileip 
+    //
+    SAMTOOLS_MPILEUP (
+        ch_bam_bai_fasta_fai.map{[it[0], it[1], []]},
+        ch_bam_bai_fasta_fai.map{[it[3]]}
+    )
+    ch_versions = ch_versions.mix(SAMTOOLS_MPILEUP.out.versions)
+
+    //
+    // MODULE: Generate count table
+    //
+    GEN_COUNT_TABLE (
+        SAMTOOLS_MPILEUP.out.mpileup
+    )
 
     ch_annotation_vcf = Channel.empty()
     if(params.viral_gff || params.annotate_flu_ref) {
