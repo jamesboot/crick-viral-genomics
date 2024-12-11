@@ -232,6 +232,13 @@ workflow {
         ch_fastq = SAMPLESHEET_CHECK.out.csv
         .splitCsv (header:true, sep:",")
         .map {
+            if (!it.containsKey("id")) {
+                exit 1, "The header 'id' is not in the samplesheet"
+            }
+            if (!it.containsKey("read1")) {
+                exit 1, "The header 'read1' is not in the samplesheet"
+            }
+
             it.single_end = true
             def read1 = file(it.read1, checkIfExists: true)
             it.remove("read1")
