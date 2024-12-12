@@ -27,7 +27,7 @@ process LINUX_COMMAND {
     def copy_cmd = ''
     def target_files = input
     if(copy_input) {
-        copy_cmd = "for file in $input; do cp \"\$file\" \"\$file.copy\"; done"
+        copy_cmd = "for file in $input; do cp \"\$file\" \"\${file}.copy\"; done"
         target_files = input.collect{ file -> "${file}.copy"}.join(' ')
     }
     def main_cmd = "cat $target_files | $post_cmd > ${prefix}.${output_suffix}.${ext}"
