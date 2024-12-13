@@ -482,8 +482,8 @@ workflow {
             //
             BWA_ALIGN_VIRUS (
                 ch_fastq,
-                ch_bwa_index,
-                ch_viral_ref,
+                ch_bwa_index.collect(),
+                ch_viral_ref.collect(),
                 true
             )
             ch_versions = ch_versions.mix(BWA_ALIGN_VIRUS.out.versions)
