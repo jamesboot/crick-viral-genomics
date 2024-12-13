@@ -1,4 +1,5 @@
 process GEN_COUNT_TABLE {
+    tag "$meta.id"
     label 'process_single'
 
     container "docker.io/thecrick/pipetech_genome_tools:0.3.3"

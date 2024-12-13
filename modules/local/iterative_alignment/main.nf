@@ -1,4 +1,5 @@
 process ITERATIVE_ALIGNMENT {
+    tag "$meta.id"
     label 'process_high'
 
     container "docker.io/thecrick/pipetech_iterative_alignment:0.2.22"
