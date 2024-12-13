@@ -158,7 +158,7 @@ workflow {
     ch_multiqc_files = Channel.empty()
 
     // Init variables
-    def multi_ref = params.run_assemble_ref || params.use_independant_refs
+    def multi_ref = params.run_assemble_ref || params.use_independant_refs || params.run_iterative_align
     def is_gff    = params.viral_gff != null || params.annotate_flu_ref
 
     // Init single file channels
@@ -374,7 +374,8 @@ workflow {
         ch_viral_ref   = ASSEMBLE_REFERENCE.out.viral_ref
         ch_fastq_fasta = ASSEMBLE_REFERENCE.out.fastq_fasta
     } else {
-        ch_viral_ref = ch_viral_fasta
+        ch_viral_ref   = ch_viral_fasta
+        ch_fastq_fasta = ch_fastq.combine(ch_viral_ref.map{it[1]})
     }
 
     //
@@ -436,11 +437,12 @@ workflow {
         ch_bai            = ITERATIVE_ALIGNMENT.out.bai
         ch_consensus_wref = ITERATIVE_ALIGNMENT.out.consensus_wref
         ch_consensus_wn   = ITERATIVE_ALIGNMENT.out.consensus_wn
+        ch_iter_final_ref = ITERATIVE_ALIGNMENT.out.final_ref
 
         //
         // CHANNEL: Assign new consensus as ref
         //
-        ch_viral_ref = ch_consensus_wref
+        ch_viral_ref = ch_iter_final_ref
     }
     else if(params.run_bwa_align) {
         //
@@ -692,7 +694,8 @@ workflow {
             .map { [it[0].id, it ]}
             .join ( ch_viral_ref_fasta_fai.map { [it[0].id, it[1], it[2]] })
             .map{ [it[1][0], it[1][1], it[1][2], it[2], it[3]] }
-    } else {
+    }
+    else {
         ch_bam_bai_fasta_fai = ch_primer_trimmed_bam_bai
             .combine(ch_viral_ref_fasta_fai)
             .map{ [it[0], it[1], it[2], it[4][0], it[5]] }
@@ -790,7 +793,6 @@ workflow {
         SAMTOOLS_MPILEUP.out.mpileup
     )
 
-    ch_annotation_vcf = Channel.empty()
     if(params.viral_gff || params.annotate_flu_ref) {
         //
         // MODULE: Build snpeff db
