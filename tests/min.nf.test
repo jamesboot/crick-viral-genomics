@@ -11,7 +11,7 @@ nextflow_pipeline {
         when {
             params {
                 viral_fasta = "$projectDir/data/refs/covid/SARS-CoV-2.fasta"
-                samplesheet = "$projectDir/tests/data/samplesheets/test_nanopore_cov_amp.csv"
+                samplesheet = "$projectDir/tests/data/samplesheets/test_nanopore_cov_amp_min.csv"
             }
         }
 

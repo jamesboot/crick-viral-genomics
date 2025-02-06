@@ -138,7 +138,6 @@ workflow {
     ]
     check_param_list.each { param -> if (param) { file(param, checkIfExists: true) } }
 
-
     // Init variables
     def multi_ref = params.run_assemble_ref || params.use_independant_refs || params.run_iterative_align
     def is_gff    = params.viral_gff != null || params.annotate_flu_ref
@@ -156,6 +155,10 @@ workflow {
     if(params.viral_gff) {
         ch_viral_gff = file(params.viral_gff, checkIfExists: true)
     }
+
+    //////////////////////////////////////
+    // MAIN WORKFLOW:
+    //////////////////////////////////////
 
     //
     // MODULE: Concat the reference files into one file
@@ -903,49 +906,51 @@ workflow {
         ch_versions = ch_versions.mix(NEXTCLADE_RUN.out.versions)
     }
 
-    //
-    // CHANNEL: Prepare VCF files for report
-    //
-    ch_vcf_files = ch_vcf_files
-        .groupTuple(by: [0])
-        .map { meta, files, callers, order ->
-                def sorted_files_and_callers = [files, callers].transpose().sort { a, b ->
-                order[callers.indexOf(a[1])] <=> order[callers.indexOf(b[1])]
-            }.transpose()
-            [meta, sorted_files_and_callers[0], sorted_files_and_callers[1]]
-        }
+    if(params.run_reporting) {
+        //
+        // CHANNEL: Prepare VCF files for report
+        //
+        ch_vcf_files = ch_vcf_files
+            .groupTuple(by: [0])
+            .map { meta, files, callers, order ->
+                    def sorted_files_and_callers = [files, callers].transpose().sort { a, b ->
+                    order[callers.indexOf(a[1])] <=> order[callers.indexOf(b[1])]
+                }.transpose()
+                [meta, sorted_files_and_callers[0], sorted_files_and_callers[1]]
+            }
 
-    //
-    // MODULE: Generate VCF report
-    //
-    VCF_REPORT (
-        ch_vcf_files
-    )
+        //
+        // MODULE: Generate VCF report
+        //
+        VCF_REPORT (
+            ch_vcf_files
+        )
 
-    //
-    // MODULE: Track software versions
-    //
-    CUSTOM_DUMPSOFTWAREVERSIONS (
-        ch_versions.unique().collectFile()
-    )
+        //
+        // MODULE: Track software versions
+        //
+        CUSTOM_DUMPSOFTWAREVERSIONS (
+            ch_versions.unique().collectFile()
+        )
 
-    //
-    // MODULE: MULTIQC
-    //
-    workflow_summary = multiqc_summary(workflow, params)
-    ch_workflow_summary = Channel.value(workflow_summary)
-    ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
-    ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
-    ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
+        //
+        // MODULE: MULTIQC
+        //
+        workflow_summary = multiqc_summary(workflow, params)
+        ch_workflow_summary = Channel.value(workflow_summary)
+        ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
+        ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
+        ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
 
-    MULTIQC (
-        ch_multiqc_files.collect(),
-        ch_multiqc_config,
-        [],
-        ch_multiqc_logo,
-        [],
-        []
-    )
+        MULTIQC (
+            ch_multiqc_files.collect(),
+            ch_multiqc_config,
+            [],
+            ch_multiqc_logo,
+            [],
+            []
+        )
+    }
 }
 
 /*

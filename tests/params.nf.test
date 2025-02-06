@@ -30,4 +30,22 @@ nextflow_pipeline {
             )
         }
     }
+
+    test("param_failures_ss_columns") {
+        tag "param_failures/ss_columns"
+
+        when {
+            params {
+                viral_fasta = "$projectDir/data/refs/covid/SARS-CoV-2.fasta"
+                samplesheet = "$projectDir/data/samplesheets/invalid/incorrect_columns.csv"
+            }
+        }
+
+        then {
+            assertAll (
+                { assert !workflow.success        },
+                { assert workflow.exitStatus != 0 }
+            )
+        }
+    }
 }
