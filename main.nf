@@ -15,79 +15,13 @@ include { get_genome_attribute } from './modules/local/util/references/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    CONFIG FILES
+    WORKFLOW INIT
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-ch_multiqc_config = file("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
-ch_multiqc_logo = file("$projectDir/assets/The_Francis_Crick_Institute_logo.png", checkIfExists: true)
-ch_seq_sim_config = file(params.seq_sim_config, checkIfExists: true)
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    REFERENCES
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-def host_fasta = get_genome_attribute(params, 'fasta')
-def host_bwa   = get_genome_attribute(params, 'bwa'  )
-if(params.host_fasta) {
-    host_fasta = params.host_fasta
-}
-if(params.host_bwa) {
-    host_bwa = params.host_bwa
-}
-
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    INIT
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
+// Create workflow summary
 log.info summary_log(workflow, params, params.debug, params.monochrome_logs)
 def summary_params = params_summary_map(workflow, params, params.debug)
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    VALIDATE INPUTS
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-// Check manditory input parameters to see if the files exist if they have been specified
-// check_param_list = [
-// ]
-// for (param in check_param_list) {
-//     if (!param.value) {
-//         exit 1, "Required parameter not specified: ${param.key}"
-//     }
-//     else {
-//         file(param.value, checkIfExists: true)
-//     }
-// }
-
-if(!params.use_independant_refs && params.viral_fasta == null) {
-     exit 1, "Required parameter not specified: viral_fasta"
-}
-
-// If no data being generated, samplesheet is manditory
-if(!params.run_generate_reads && params.samplesheet == null) {
-     exit 1, "Required parameter not specified: samplesheet"
-}
-
-// Check non-manditory input parameters to see if the files exist if they have been specified
-check_param_list = [
-    params.samplesheet,
-    params.viral_gff,
-    params.host_fasta,
-    params.host_bwa,
-    params.seq_sim_ref_dir,
-    params.seq_sim_config,
-    params.primers_bed,
-    params.primers_fasta,
-    params.primers_csv
-]
-for (param in check_param_list) { if (param) { file(param, checkIfExists: true) } }
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -153,9 +87,57 @@ include { ILLUMINA_VARCALL                                } from './subworkflows
 */
 
 workflow {
+    //////////////////////////////////////
+    // INIT:
+    //////////////////////////////////////
+
+    // Load static config
+    ch_multiqc_config = file("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
+    ch_multiqc_logo   = file("$projectDir/assets/The_Francis_Crick_Institute_logo.png", checkIfExists: true)
+    ch_seq_sim_config = file(params.seq_sim_config, checkIfExists: true)
+
+    // Resolve references
+    def host_fasta = get_genome_attribute(params, 'fasta')
+    def host_bwa   = get_genome_attribute(params, 'bwa'  )
+    if(params.host_fasta) {
+        host_fasta = params.host_fasta
+    }
+    if(params.host_bwa) {
+        host_bwa = params.host_bwa
+    }
+
     // Init persistant channels
     ch_versions      = Channel.empty()
     ch_multiqc_files = Channel.empty()
+
+    //////////////////////////////////////
+    // CHECK PARAMS:
+    //////////////////////////////////////
+
+    // If using ref per sample, load from samplesheet, otherewise we need a ref dir or single fasta
+    if(!params.use_independant_refs && params.viral_fasta == null) {
+        exit 1, "Required parameter not specified: viral_fasta"
+    }
+
+    // If no data being generated, samplesheet is manditory
+    if(!params.run_generate_reads && params.samplesheet == null) {
+        exit 1, "Required parameter not specified: samplesheet"
+    }
+
+    // Check non-manditory input parameters to see if the files exist if they have been specified
+    check_param_list = [
+        params.samplesheet,
+        params.viral_gff,
+        params.host_fasta,
+        params.host_bwa,
+        params.seq_sim_ref_dir,
+        params.seq_sim_config,
+        params.primers_bed,
+        params.primers_fasta,
+        params.primers_csv
+    ]
+    check_param_list.each { param -> if (param) { file(param, checkIfExists: true) } }
+
 
     // Init variables
     def multi_ref = params.run_assemble_ref || params.use_independant_refs || params.run_iterative_align
