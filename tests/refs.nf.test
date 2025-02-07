@@ -1,0 +1,61 @@
+nextflow_pipeline {
+    name "Test Pipeline Components"
+    script "../main.nf"
+
+    tag "refs"
+
+    test("refs_host_genome_resolve_illumina") {
+        tag "refs/host_genome_resolve_illumina"
+        when {
+            params {
+                run_remove_host_reads = true
+                run_reporting         = false
+
+                outdir      = "$outputDir"
+                viral_fasta = "$projectDir/data/refs/covid/SARS-CoV-2.fasta"
+                samplesheet = "$projectDir/tests/data/samplesheets/test_nanopore_cov_amp_min.csv"
+                host_genome = "sacCer3"
+            }
+        }
+        then {
+            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
+            def stable_path = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
+            assertAll(
+                { assert workflow.success},
+                { assert snapshot(
+                    workflow.trace.succeeded().size(),
+                    stable_name,
+                    stable_path
+                ).match() }
+            )
+        }
+    }
+
+    test("refs_host_genome_resolve_nanopore") {
+        tag "refs/host_genome_resolve_nanopore"
+        when {
+            params {
+                run_remove_host_reads = true
+                run_minimap_align     = true
+                run_reporting         = false
+
+                outdir      = "$outputDir"
+                viral_fasta = "$projectDir/data/refs/covid/SARS-CoV-2.fasta"
+                samplesheet = "$projectDir/tests/data/samplesheets/test_nanopore_cov_amp_min.csv"
+                host_genome = "sacCer3"
+            }
+        }
+        then {
+            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
+            def stable_path = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
+            assertAll(
+                { assert workflow.success},
+                { assert snapshot(
+                    workflow.trace.succeeded().size(),
+                    stable_name,
+                    stable_path
+                ).match() }
+            )
+        }
+    }
+}
