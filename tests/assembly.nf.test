@@ -1,0 +1,32 @@
+nextflow_pipeline {
+    name "Test Pipeline Components"
+    script "../main.nf"
+
+    tag "assembly"
+
+    test("assembly_illumina") {
+        tag "assembly/illumina"
+        when {
+            params {
+                run_assemble_ref = true
+                run_reporting    = false
+
+                outdir      = "$outputDir"
+                viral_fasta = "$projectDir/tests/data/seq_sim/influenza_A/*"
+                samplesheet = "$projectDir/tests/data/samplesheets/test_flu_small.csv"
+            }
+        }
+        then {
+            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
+            def stable_path = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
+            assertAll(
+                { assert workflow.success},
+                { assert snapshot(
+                    workflow.trace.succeeded().size(),
+                    stable_name,
+                    stable_path
+                ).match() }
+            )
+        }
+    }
+}
