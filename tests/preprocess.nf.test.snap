@@ -111,5 +111,56 @@
             "nextflow": "24.10.4"
         },
         "timestamp": "2025-02-07T10:50:08.732851"
+    },
+    "preprocess_trim_nanopore": {
+        "content": [
+            8,
+            [
+                "consensus",
+                "consensus/consensus.merged.fasta",
+                "pipeline_info",
+                "qc",
+                "qc/toulligqc",
+                "qc/toulligqc/FAY66992_BC15_ONT",
+                "qc/toulligqc/FAY66992_BC15_ONT/images",
+                "qc/toulligqc/FAY66992_BC15_ONT/images/Channel_occupancy_of_the_flowcell.html",
+                "qc/toulligqc/FAY66992_BC15_ONT/images/Correlation_between_read_length_and_PHRED_score.html",
+                "qc/toulligqc/FAY66992_BC15_ONT/images/Distribution_of_read_lengths.html",
+                "qc/toulligqc/FAY66992_BC15_ONT/images/PHRED_score_density_distribution.html",
+                "qc/toulligqc/FAY66992_BC15_ONT/images/PHRED_score_distribution.html",
+                "qc/toulligqc/FAY66992_BC15_ONT/images/PHRED_score_over_time.html",
+                "qc/toulligqc/FAY66992_BC15_ONT/images/Read_count_histogram.html",
+                "qc/toulligqc/FAY66992_BC15_ONT/images/Read_length_over_time.html",
+                "qc/toulligqc/FAY66992_BC15_ONT/images/Yield_plot_through_time.html",
+                "qc/toulligqc/FAY66992_BC15_ONT/images/plotly.min.js",
+                "qc/toulligqc/FAY66992_BC15_ONT/report.data",
+                "qc/toulligqc/FAY66992_BC15_ONT/report.html",
+                "qc/toulligqc/FAY66992_BC23_ONT",
+                "qc/toulligqc/FAY66992_BC23_ONT/images",
+                "qc/toulligqc/FAY66992_BC23_ONT/images/Channel_occupancy_of_the_flowcell.html",
+                "qc/toulligqc/FAY66992_BC23_ONT/images/Correlation_between_read_length_and_PHRED_score.html",
+                "qc/toulligqc/FAY66992_BC23_ONT/images/Distribution_of_read_lengths.html",
+                "qc/toulligqc/FAY66992_BC23_ONT/images/PHRED_score_density_distribution.html",
+                "qc/toulligqc/FAY66992_BC23_ONT/images/PHRED_score_distribution.html",
+                "qc/toulligqc/FAY66992_BC23_ONT/images/PHRED_score_over_time.html",
+                "qc/toulligqc/FAY66992_BC23_ONT/images/Read_count_histogram.html",
+                "qc/toulligqc/FAY66992_BC23_ONT/images/Read_length_over_time.html",
+                "qc/toulligqc/FAY66992_BC23_ONT/images/Yield_plot_through_time.html",
+                "qc/toulligqc/FAY66992_BC23_ONT/images/plotly.min.js",
+                "qc/toulligqc/FAY66992_BC23_ONT/report.data",
+                "qc/toulligqc/FAY66992_BC23_ONT/report.html",
+                "ref_assembly",
+                "ref_assembly/SARS-CoV-2.fasta.fai"
+            ],
+            [
+                "consensus.merged.fasta:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "SARS-CoV-2.fasta.fai:md5,6806a14930eab7e2de4e9776d79bcab2"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "24.10.4"
+        },
+        "timestamp": "2025-02-07T11:25:01.614951"
     }
 }
