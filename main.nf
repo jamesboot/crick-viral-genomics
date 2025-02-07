@@ -96,7 +96,7 @@ workflow {
     ch_multiqc_logo   = file("$projectDir/assets/The_Francis_Crick_Institute_logo.png", checkIfExists: true)
     ch_seq_sim_config = file(params.seq_sim_config, checkIfExists: true)
 
-    // Resolve references
+    // Resolve references, load from genome if possible but then override from params if supplied
     def host_fasta = get_genome_attribute(params, 'fasta')
     def host_bwa   = get_genome_attribute(params, 'bwa'  )
     if(params.host_fasta) {
