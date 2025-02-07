@@ -1,0 +1,23 @@
+{
+    "preprocess_cat_fastq": {
+        "content": [
+            6,
+            [
+                "consensus",
+                "consensus/consensus.merged.fasta",
+                "pipeline_info",
+                "ref_assembly",
+                "ref_assembly/SARS-CoV-2.fasta.fai"
+            ],
+            [
+                "consensus.merged.fasta:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "SARS-CoV-2.fasta.fai:md5,6806a14930eab7e2de4e9776d79bcab2"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "24.10.4"
+        },
+        "timestamp": "2025-02-07T10:34:39.68796"
+    }
+}

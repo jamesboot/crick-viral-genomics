@@ -1,0 +1,35 @@
+nextflow_pipeline {
+    name "Test Pipeline Components"
+    script "../main.nf"
+
+    tag "preprocess"
+
+    test("preprocess_cat_fastq") {
+        tag "preprocess/cat_fastq"
+        when {
+            params {
+                run_reporting         = false
+
+                outdir      = "$outputDir"
+                viral_fasta = "$projectDir/data/refs/covid/SARS-CoV-2.fasta"
+                samplesheet = "$projectDir/tests/data/samplesheets/test_nanopore_cov_amp.csv"
+            }
+        }
+        then {
+            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
+            def stable_path = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
+            def task_count = workflow.trace.tasks().count { task ->
+                task.name.contains("CAT_FASTQ")
+            }
+            assertAll(
+                { assert workflow.success},
+                { assert task_count == 2 },
+                { assert snapshot(
+                    workflow.trace.succeeded().size(),
+                    stable_name,
+                    stable_path
+                ).match() }
+            )
+        }
+    }
+}
