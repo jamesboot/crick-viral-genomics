@@ -160,5 +160,26 @@
             "nextflow": "24.10.4"
         },
         "timestamp": "2025-02-07T09:09:46.878718"
+    },
+    "refs_merge_refs": {
+        "content": [
+            5,
+            [
+                "consensus",
+                "consensus/consensus.merged.fasta",
+                "pipeline_info",
+                "ref_assembly",
+                "ref_assembly/viral_reference.merged.fasta.fai"
+            ],
+            [
+                "consensus.merged.fasta:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "viral_reference.merged.fasta.fai:md5,c1207acbd8f4d0ce7d301a735c40b378"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "24.10.4"
+        },
+        "timestamp": "2025-02-07T10:05:47.621749"
     }
 }
