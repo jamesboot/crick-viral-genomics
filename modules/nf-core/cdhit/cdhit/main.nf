@@ -28,7 +28,7 @@ process CDHIT_CDHIT {
         avail_mem = (task.memory.mega*0.8).intValue()
     }
     """
-    cd-hit \\
+    cd-hit-est \\
         $args \\
         -i $sequences \\
         -o ${prefix}.fasta \\
