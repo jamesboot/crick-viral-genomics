@@ -1,3 +1,4 @@
 pipeline_info/*.{html,json,txt,yml}
 qc/toulligqc/*/*.{data,html}
 qc/toulligqc/*/images/*.{data,html,js}
+viral_ref/annotation/*.gff

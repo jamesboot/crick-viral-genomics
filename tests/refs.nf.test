@@ -109,4 +109,30 @@ nextflow_pipeline {
             )
         }
     }
+
+        test("refs_annotate_flu_ref") {
+        tag "refs/annotate_flu_ref"
+        when {
+            params {
+                run_reporting    = false
+                annotate_flu_ref = true
+
+                outdir      = "$outputDir"
+                viral_fasta = "$projectDir/tests/data/seq_sim/H1N1_NA_Uk/*"
+                samplesheet = "$projectDir/tests/data/samplesheets/test_flu_single.csv"
+            }
+        }
+        then {
+            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
+            def stable_path = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
+            assertAll(
+                { assert workflow.success},
+                { assert snapshot(
+                    workflow.trace.succeeded().size(),
+                    stable_name,
+                    stable_path
+                ).match() }
+            )
+        }
+    }
 }
