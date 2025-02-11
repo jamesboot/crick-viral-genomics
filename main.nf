@@ -351,9 +351,14 @@ workflow {
         //
         // SUBWORKFLOW: Assemble reference from a list of possible references in the viral_fasta
         //
+        def assemble_mode = "illumina"
+        if(params.run_minimap_align) {
+            assemble_mode = "ont"
+        }
         ASSEMBLE_REFERENCE (
             ch_fastq,
-            ch_viral_fasta
+            ch_viral_fasta,
+            assemble_mode
         )
         ch_versions    = ch_versions.mix(ASSEMBLE_REFERENCE.out.versions)
         ch_viral_ref   = ASSEMBLE_REFERENCE.out.viral_ref
@@ -737,7 +742,7 @@ workflow {
         ch_viral_ref = ch_con_ref.map{[it[0], it[2]]}
     }
     if(!multi_ref && is_gff) {
-        ch_viral_gff = Channel.of(ch_viral_gff).map{[[], it]}.collect()
+        // ch_viral_gff = Channel.of(ch_viral_gff).map{[[], it]}.collect()
     }
     else if (multi_ref && is_gff) {
         ch_con_ref_gff = ch_consensus
