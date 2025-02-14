@@ -742,7 +742,7 @@ workflow {
         ch_viral_ref = ch_con_ref.map{[it[0], it[2]]}
     }
     if(!multi_ref && is_gff) {
-        // ch_viral_gff = Channel.of(ch_viral_gff).map{[[], it]}.collect()
+        ch_viral_gff = Channel.of(ch_viral_gff).map{[[], it]}.collect()
     }
     else if (multi_ref && is_gff) {
         ch_con_ref_gff = ch_consensus
