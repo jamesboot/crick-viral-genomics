@@ -241,6 +241,29 @@ workflow {
                 [it, [read1]]
             }
         }
+
+        //
+        // CHANNEL: Check for folders and expand
+        //
+        ch_fastq_folder = ch_fastq.branch {
+            meta, fastq ->
+                single  : !fastq[0].isDirectory()
+                    return [ meta, fastq ]
+                folder: fastq[0].isDirectory()
+                    return [ meta, fastq[0] ]
+        }
+        ch_fastq_folder_expanded = ch_fastq_folder.folder
+            .flatMap {
+                meta, folder ->
+                    def files = folder
+                        .listFiles()
+                        .findAll { it.name ==~ /.*\.(fastq|fq)(\.gz)?/ }
+                        .sort { it.name }
+                    files.collect { file ->
+                        [ meta, file ]
+                    }
+            }
+        ch_fastq = ch_fastq_folder.single.mix(ch_fastq_folder_expanded)
     }
 
     //
@@ -383,11 +406,9 @@ workflow {
             false,
             "split"
         )
-        ch_split_refs = SPLIT_REF.out.file.flatMap 
-        { meta, files ->
-            files.collect { file ->
-                [meta, file]
-                }
+        ch_split_refs = SPLIT_REF.out.file
+        .flatMap { meta, files ->
+            files.collect { file -> [meta, file] }
         }
 
         //
