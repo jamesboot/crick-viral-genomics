@@ -837,47 +837,49 @@ workflow {
     ch_versions      = ch_versions.mix(MOSDEPTH.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]})
 
-    //
-    // MODULE: Merge ref and conesensus seq into one file
-    //
-    ch_consensus_fasta_merge_ref = ch_viral_ref
-        .map{it[1]}
-        .mix(ch_consensus.map{it[1]})
-        .flatten()
-        .toSortedList()
-        .map{[[id:"consensus"], it]}
-    MERGE_CONSENSUS_REF (
-        ch_consensus_fasta_merge_ref,
-        [],
-        true,
-        "merged"
-    )
-    ch_merged_consensus_ref = MERGE_CONSENSUS_REF.out.file
-
-    //
-    // MODULE: conesensus seqs into one file
-    //
-    ch_consensus_fasta_merge = ch_consensus
-        .map{it[1]}
-        .flatten()
-        .toSortedList()
-        .map{[[id:"consensus"], it]}
-    MERGE_CONSENSUS (
-        ch_consensus_fasta_merge,
-        [],
-        true,
-        "merged"
-    )
-    ch_merged_consensus = MERGE_CONSENSUS_REF.out.file
-
-    //
-    // MODULE: MSA
-    //
-    if(params.run_msa) {
-        MUSCLE (
-            ch_merged_consensus_ref
+    if(params.run_nanopore_varcall || params.run_illumina_varcall) {
+        //
+        // MODULE: Merge ref and conesensus seq into one file
+        //
+        ch_consensus_fasta_merge_ref = ch_viral_ref
+            .map{it[1]}
+            .mix(ch_consensus.map{it[1]})
+            .flatten()
+            .toSortedList()
+            .map{[[id:"consensus"], it]}
+        MERGE_CONSENSUS_REF (
+            ch_consensus_fasta_merge_ref,
+            [],
+            true,
+            "merged"
         )
-        ch_versions = ch_versions.mix(MUSCLE.out.versions)
+        ch_merged_consensus_ref = MERGE_CONSENSUS_REF.out.file
+
+        //
+        // MODULE: conesensus seqs into one file
+        //
+        ch_consensus_fasta_merge = ch_consensus
+            .map{it[1]}
+            .flatten()
+            .toSortedList()
+            .map{[[id:"consensus"], it]}
+        MERGE_CONSENSUS (
+            ch_consensus_fasta_merge,
+            [],
+            true,
+            "merged"
+        )
+        ch_merged_consensus = MERGE_CONSENSUS_REF.out.file
+
+        //
+        // MODULE: MSA
+        //
+        if(params.run_msa) {
+            MUSCLE (
+                ch_merged_consensus_ref
+            )
+            ch_versions = ch_versions.mix(MUSCLE.out.versions)
+        }
     }
 
     //

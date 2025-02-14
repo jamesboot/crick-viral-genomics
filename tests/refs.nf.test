@@ -67,7 +67,7 @@ nextflow_pipeline {
 
                 outdir      = "$outputDir"
                 viral_fasta = "$projectDir/tests/data/seq_sim/influenza_A/*"
-                samplesheet = "$projectDir/tests/data/samplesheets/test_flu_small.csv"
+                samplesheet = "$projectDir/tests/data/samplesheets/test_illumina_flu_amp_small.csv"
             }
         }
         then {
@@ -93,7 +93,7 @@ nextflow_pipeline {
 
                 outdir      = "$outputDir"
                 viral_fasta = "$projectDir/tests/data/seq_sim/influenza_A/*"
-                samplesheet = "$projectDir/tests/data/samplesheets/test_flu_small.csv"
+                samplesheet = "$projectDir/tests/data/samplesheets/test_illumina_flu_amp_small.csv"
             }
         }
         then {
@@ -119,7 +119,7 @@ nextflow_pipeline {
 
                 outdir      = "$outputDir"
                 viral_fasta = "$projectDir/tests/data/seq_sim/H1N1_NA_Uk/*"
-                samplesheet = "$projectDir/tests/data/samplesheets/test_flu_single.csv"
+                samplesheet = "$projectDir/tests/data/samplesheets/test_illumina_flu_amp_single.csv"
             }
         }
         then {
