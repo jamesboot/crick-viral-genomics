@@ -869,7 +869,7 @@ workflow {
             true,
             "merged"
         )
-        ch_merged_consensus = MERGE_CONSENSUS_REF.out.file
+        ch_merged_consensus = MERGE_CONSENSUS.out.file
 
         //
         // MODULE: MSA
@@ -887,7 +887,7 @@ workflow {
     //
     if(params.run_panglolin) {
         PANGOLIN (
-            ch_consensus
+            ch_merged_consensus
         )
         ch_versions      = ch_versions.mix(PANGOLIN.out.versions)
         ch_multiqc_files = ch_multiqc_files.mix(PANGOLIN.out.report.collect{it[1]})
