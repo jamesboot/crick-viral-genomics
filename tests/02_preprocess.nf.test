@@ -2,72 +2,76 @@ nextflow_pipeline {
     name "Test Pipeline Components"
     script "../main.nf"
 
-    tag "refs"
+    tag "preprocess"
 
-    test("refs_host_genome_resolve_illumina") {
-        tag "refs/host_genome_resolve_illumina"
-        when {
-            params {
-                run_remove_host_reads = true
-                run_reporting         = false
-
-                outdir      = "$outputDir"
-                viral_fasta = "$projectDir/data/refs/covid/SARS-CoV-2.fasta"
-                samplesheet = "$projectDir/tests/data/samplesheets/test_nanopore_cov_amp_min.csv"
-                host_genome = "sacCer3"
-            }
-        }
-        then {
-            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
-            def stable_path = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
-            assertAll(
-                { assert workflow.success},
-                { assert snapshot(
-                    workflow.trace.succeeded().size(),
-                    stable_name,
-                    stable_path
-                ).match() }
-            )
-        }
-    }
-
-    test("refs_host_genome_resolve_nanopore") {
-        tag "refs/host_genome_resolve_nanopore"
-        when {
-            params {
-                run_remove_host_reads = true
-                run_minimap_align     = true
-                run_reporting         = false
-
-                outdir      = "$outputDir"
-                viral_fasta = "$projectDir/data/refs/covid/SARS-CoV-2.fasta"
-                samplesheet = "$projectDir/tests/data/samplesheets/test_nanopore_cov_amp_min.csv"
-                host_genome = "sacCer3"
-            }
-        }
-        then {
-            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
-            def stable_path = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
-            assertAll(
-                { assert workflow.success},
-                { assert snapshot(
-                    workflow.trace.succeeded().size(),
-                    stable_name,
-                    stable_path
-                ).match() }
-            )
-        }
-    }
-
-    test("refs_merge_refs") {
-        tag "refs/merge_refs"
+    test("preprocess_cat_fastq_singles") {
+        tag "preprocess/cat_fastq_singles"
         when {
             params {
                 run_reporting = false
 
                 outdir      = "$outputDir"
+                viral_fasta = "$projectDir/data/refs/covid/SARS-CoV-2.fasta"
+                samplesheet = "$projectDir/tests/data/samplesheets/test_nanopore_cov_amp.csv"
+            }
+        }
+        then {
+            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
+            def stable_path = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
+            def task_count = workflow.trace.tasks().count { task ->
+                task.name.contains("CAT_FASTQ")
+            }
+            assertAll(
+                { assert workflow.success},
+                { assert task_count == 2 },
+                { assert snapshot(
+                    workflow.trace.succeeded().size(),
+                    stable_name,
+                    stable_path
+                ).match() }
+            )
+        }
+    }
+
+    test("preprocess_cat_fastq_folder") {
+        tag "preprocess/cat_fastq_folder"
+        when {
+            params {
+                run_reporting = false
+
+                outdir      = "$outputDir"
+                viral_fasta = "$projectDir/data/refs/covid/SARS-CoV-2.fasta"
+                samplesheet = "$projectDir/tests/data/samplesheets/test_nanopore_cov_amp_folder.csv"
+            }
+        }
+        then {
+            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
+            def stable_path = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
+            def task_count = workflow.trace.tasks().count { task ->
+                task.name.contains("CAT_FASTQ")
+            }
+            assertAll(
+                { assert workflow.success},
+                { assert task_count == 2 },
+                { assert snapshot(
+                    workflow.trace.succeeded().size(),
+                    stable_name,
+                    stable_path
+                ).match() }
+            )
+        }
+    }
+
+    test("preprocess_trim_illumina") {
+        tag "preprocess/trim_illumina"
+        when {
+            params {
+                run_illumina_qc_trim = true
+                run_reporting        = false
+
+                outdir      = "$outputDir"
                 viral_fasta = "$projectDir/tests/data/seq_sim/influenza_A/*"
-                samplesheet = "$projectDir/tests/data/samplesheets/test_illumina_flu_amp_small.csv"
+                samplesheet = "$projectDir/tests/data/samplesheets/test_illumina_flu_amp.csv"
             }
         }
         then {
@@ -84,42 +88,16 @@ nextflow_pipeline {
         }
     }
 
-    test("refs_force_upper") {
-        tag "refs/force_upper"
+    test("preprocess_trim_nanopore") {
+        tag "preprocess/trim_nanopore"
         when {
             params {
-                run_reporting      = false
-                force_ref_to_upper = true
+                run_nanopore_qc_trim = true
+                run_reporting        = false
 
                 outdir      = "$outputDir"
-                viral_fasta = "$projectDir/tests/data/seq_sim/influenza_A/*"
-                samplesheet = "$projectDir/tests/data/samplesheets/test_illumina_flu_amp_small.csv"
-            }
-        }
-        then {
-            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
-            def stable_path = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
-            assertAll(
-                { assert workflow.success},
-                { assert snapshot(
-                    workflow.trace.succeeded().size(),
-                    stable_name,
-                    stable_path
-                ).match() }
-            )
-        }
-    }
-
-        test("refs_annotate_flu_ref") {
-        tag "refs/annotate_flu_ref"
-        when {
-            params {
-                run_reporting    = false
-                annotate_flu_ref = true
-
-                outdir      = "$outputDir"
-                viral_fasta = "$projectDir/tests/data/seq_sim/H1N1_NA_Uk/*"
-                samplesheet = "$projectDir/tests/data/samplesheets/test_illumina_flu_amp_single.csv"
+                viral_fasta = "$projectDir/data/refs/covid/SARS-CoV-2.fasta"
+                samplesheet = "$projectDir/tests/data/samplesheets/test_nanopore_cov_amp.csv"
             }
         }
         then {

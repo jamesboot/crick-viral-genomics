@@ -1,5 +1,5 @@
 nextflow_pipeline {
-    name "Test end-to-end Pipeline"
+    name "Test minimal end-to-end pipeline"
     script "../main.nf"
     tag "pipeline"
 
