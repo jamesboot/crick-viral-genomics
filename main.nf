@@ -709,7 +709,7 @@ workflow {
     else {
         ch_bam_bai_fasta_fai = ch_primer_trimmed_bam_bai
             .combine(ch_viral_ref_fasta_fai)
-            .map{ [it[0], it[1], it[2], it[4][0], it[5]] }
+            .map{ [it[0], it[1], it[2], it[4], it[5]] }
     }
 
     //
@@ -783,13 +783,15 @@ workflow {
     //
     // MODULE: Quast assembly QC
     //
-    QUAST (
-        ch_consensus,
-        ch_viral_ref,
-        ch_viral_gff
-    )
-    ch_versions      = ch_versions.mix(QUAST.out.versions)
-    ch_multiqc_files = ch_multiqc_files.mix(QUAST.out.tsv.collect{it[1]})
+    if(params.run_illumina_varcall || params.run_nanopore_varcall) {
+        QUAST (
+            ch_consensus,
+            ch_viral_ref,
+            ch_viral_gff
+        )
+        ch_versions      = ch_versions.mix(QUAST.out.versions)
+        ch_multiqc_files = ch_multiqc_files.mix(QUAST.out.tsv.collect{it[1]})
+    }
 
     //
     // MODULE: Calculate the pileip 
