@@ -180,6 +180,7 @@ workflow {
             "merged"
         )
         ch_viral_fasta = MERGE_REFS.out.file.mix(ch_viral_fasta_merge.single)
+        ch_viral_fasta = ch_viral_fasta.map{ [ it[0], (it[1] instanceof List ? it[1][0] : it[1] ) ] }
     }
 
     //
