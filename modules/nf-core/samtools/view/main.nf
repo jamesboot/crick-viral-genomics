@@ -11,6 +11,7 @@ process SAMTOOLS_VIEW {
     tuple val(meta), path(input), path(index)
     tuple val(meta2), path(fasta)
     path qname
+    path extra_file
 
     output:
     tuple val(meta), path("${prefix}.bam"),                                    emit: bam,              optional: true
