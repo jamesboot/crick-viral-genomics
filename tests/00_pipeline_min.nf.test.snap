@@ -1,0 +1,20 @@
+{
+    "pipeline_min": {
+        "content": [
+            2,
+            [
+                "00_reference",
+                "00_reference/SARS-CoV-2.fasta.fai",
+                "pipeline_info"
+            ],
+            [
+                "SARS-CoV-2.fasta.fai:md5,6806a14930eab7e2de4e9776d79bcab2"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "24.10.4"
+        },
+        "timestamp": "2025-02-14T11:10:27.262795"
+    }
+}

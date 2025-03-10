@@ -1,0 +1,263 @@
+{
+    "refs_host_genome_resolve_nanopore": {
+        "content": [
+            40,
+            [
+                "00_reference",
+                "00_reference/SARS-CoV-2.fasta.fai",
+                "01_qc",
+                "01_qc/mosdepth",
+                "01_qc/mosdepth/FAY66992_BC15.mosdepth.global.dist.txt",
+                "01_qc/mosdepth/FAY66992_BC15.mosdepth.region.dist.txt",
+                "01_qc/mosdepth/FAY66992_BC15.mosdepth.summary.txt",
+                "01_qc/mosdepth/FAY66992_BC15.per-base.bed.gz",
+                "01_qc/mosdepth/FAY66992_BC15.per-base.bed.gz.csi",
+                "01_qc/mosdepth/FAY66992_BC15.regions.bed.gz",
+                "01_qc/mosdepth/FAY66992_BC15.regions.bed.gz.csi",
+                "01_qc/mosdepth/FAY66992_BC23.mosdepth.global.dist.txt",
+                "01_qc/mosdepth/FAY66992_BC23.mosdepth.region.dist.txt",
+                "01_qc/mosdepth/FAY66992_BC23.mosdepth.summary.txt",
+                "01_qc/mosdepth/FAY66992_BC23.per-base.bed.gz",
+                "01_qc/mosdepth/FAY66992_BC23.per-base.bed.gz.csi",
+                "01_qc/mosdepth/FAY66992_BC23.regions.bed.gz",
+                "01_qc/mosdepth/FAY66992_BC23.regions.bed.gz.csi",
+                "02_host_removal",
+                "02_host_removal/FAY66992_BC15.host.sorted.bam",
+                "02_host_removal/FAY66992_BC15.host.sorted.bam.bai",
+                "02_host_removal/FAY66992_BC23.host.sorted.bam",
+                "02_host_removal/FAY66992_BC23.host.sorted.bam.bai",
+                "02_host_removal/stats",
+                "02_host_removal/stats/FAY66992_BC15.host.flagstat",
+                "02_host_removal/stats/FAY66992_BC15.host.idxstats",
+                "02_host_removal/stats/FAY66992_BC15.host.stats",
+                "02_host_removal/stats/FAY66992_BC23.host.flagstat",
+                "02_host_removal/stats/FAY66992_BC23.host.idxstats",
+                "02_host_removal/stats/FAY66992_BC23.host.stats",
+                "03_viral_reads",
+                "03_viral_reads/FAY66992_BC15.viral_1.fastq.gz",
+                "03_viral_reads/FAY66992_BC23.viral_1.fastq.gz",
+                "06_alignment",
+                "06_alignment/FAY66992_BC15.bam",
+                "06_alignment/FAY66992_BC15.viral.sorted.bam",
+                "06_alignment/FAY66992_BC15.viral.sorted.bam.bai",
+                "06_alignment/FAY66992_BC23.bam",
+                "06_alignment/FAY66992_BC23.viral.sorted.bam",
+                "06_alignment/FAY66992_BC23.viral.sorted.bam.bai",
+                "06_alignment/stats",
+                "06_alignment/stats/FAY66992_BC15.viral.flagstat",
+                "06_alignment/stats/FAY66992_BC15.viral.idxstats",
+                "06_alignment/stats/FAY66992_BC15.viral.stats",
+                "06_alignment/stats/FAY66992_BC23.viral.flagstat",
+                "06_alignment/stats/FAY66992_BC23.viral.idxstats",
+                "06_alignment/stats/FAY66992_BC23.viral.stats",
+                "08_consensus",
+                "08_consensus/count_tables",
+                "08_consensus/count_tables/FAY66992_BC15.count_table.csv",
+                "08_consensus/count_tables/FAY66992_BC23.count_table.csv",
+                "08_consensus/pileup",
+                "08_consensus/pileup/FAY66992_BC15.mpileup",
+                "08_consensus/pileup/FAY66992_BC23.mpileup",
+                "pipeline_info"
+            ],
+            [
+                "SARS-CoV-2.fasta.fai:md5,6806a14930eab7e2de4e9776d79bcab2",
+                "FAY66992_BC15.mosdepth.global.dist.txt:md5,d97850e4a9407d08fb700330078e1225",
+                "FAY66992_BC15.mosdepth.region.dist.txt:md5,9b0b039931c43acb2b7f34b3760fb16c",
+                "FAY66992_BC15.mosdepth.summary.txt:md5,516d5e42bf42a9a714fe48d57fa8b3fc",
+                "FAY66992_BC15.per-base.bed.gz:md5,395d05ccad354cb580745853a8a52ae7",
+                "FAY66992_BC15.per-base.bed.gz.csi:md5,f296b400245b56e1452a1b95fa584e13",
+                "FAY66992_BC15.regions.bed.gz:md5,0282d47e59965a4cb7c33f1de91a08f3",
+                "FAY66992_BC15.regions.bed.gz.csi:md5,0837dc2746173177731a6a5b5085e8b5",
+                "FAY66992_BC23.mosdepth.global.dist.txt:md5,add230bdb21ec5045d5f45b5b03fcb34",
+                "FAY66992_BC23.mosdepth.region.dist.txt:md5,50aae8fd6e67d6434dc96cd99bb2a9bc",
+                "FAY66992_BC23.mosdepth.summary.txt:md5,506d22517700faa4324a25502d08f6f7",
+                "FAY66992_BC23.per-base.bed.gz:md5,65e9ab7d62122c132a352b1a7cc3907d",
+                "FAY66992_BC23.per-base.bed.gz.csi:md5,f61b4cb18363cb43963e3444db8a446d",
+                "FAY66992_BC23.regions.bed.gz:md5,b5f762820e63a0dff0590266db1f10f9",
+                "FAY66992_BC23.regions.bed.gz.csi:md5,de0ecd3345c1c5b442025a8c31b4ad40",
+                "FAY66992_BC15.host.sorted.bam:md5,5f1f5acf7fd084155ce7b6cb6db16289",
+                "FAY66992_BC15.host.sorted.bam.bai:md5,e91dce50260434b47f311e6867b12bcf",
+                "FAY66992_BC23.host.sorted.bam:md5,ca37e7346fa99f73524282552a362327",
+                "FAY66992_BC23.host.sorted.bam.bai:md5,b500b9e5bbbfa3d1f00391c1d2049d82",
+                "FAY66992_BC15.host.flagstat:md5,e08521543a095801f48f59c6884aa135",
+                "FAY66992_BC15.host.idxstats:md5,646c153849e6691daa9e1a81e13dddc0",
+                "FAY66992_BC15.host.stats:md5,9f477847d976dd870d67d362a4dfa02e",
+                "FAY66992_BC23.host.flagstat:md5,e2060f460793696320d456702d2b3ef4",
+                "FAY66992_BC23.host.idxstats:md5,c66dbaa2850b0c0d889befe292b5db20",
+                "FAY66992_BC23.host.stats:md5,7a9f72a103f004d551de931b0afb6032",
+                "FAY66992_BC15.viral_1.fastq.gz:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "FAY66992_BC23.viral_1.fastq.gz:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "FAY66992_BC15.bam:md5,9101c7cf919880deb9d6a22f7d96338c",
+                "FAY66992_BC15.viral.sorted.bam:md5,a5c31455a8285fa67c19834c57ff6944",
+                "FAY66992_BC15.viral.sorted.bam.bai:md5,fde097e2bc3ba27d103a542c9557ae8c",
+                "FAY66992_BC23.bam:md5,d153dcc371495b7a054dad89f6b5d9f1",
+                "FAY66992_BC23.viral.sorted.bam:md5,b1996166e54798bc7951eb7d0e280e73",
+                "FAY66992_BC23.viral.sorted.bam.bai:md5,48d98070007f6bf808724b7cd33584d4",
+                "FAY66992_BC15.viral.flagstat:md5,717d75014cc36984b4c609cf88ceb492",
+                "FAY66992_BC15.viral.idxstats:md5,b4e145beedadd522f1fd2cd1f95d9b6a",
+                "FAY66992_BC15.viral.stats:md5,3b828748a3d82bbcafe1b7351c1b0403",
+                "FAY66992_BC23.viral.flagstat:md5,49baf7593bbd9a3f936b146a36800caf",
+                "FAY66992_BC23.viral.idxstats:md5,66f80fe4ec6d20c555c34972426776ac",
+                "FAY66992_BC23.viral.stats:md5,47a905bd28f6a710118b1180d92b3e9b",
+                "FAY66992_BC15.count_table.csv:md5,cc30c9f4c332c4e2442f4e414f1e0de3",
+                "FAY66992_BC23.count_table.csv:md5,0f8e01f23205854196483e77362aa8c3",
+                "FAY66992_BC15.mpileup:md5,4503b6a1d80eeaf2ded2978f2c5abce4",
+                "FAY66992_BC23.mpileup:md5,79e15fe801c5dd33c2fc4b1839acf2e0"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "24.10.4"
+        },
+        "timestamp": "2025-02-14T16:06:34.141084"
+    },
+    "refs_force_upper": {
+        "content": [
+            4,
+            [
+                "00_reference",
+                "00_reference/viral_reference.merged.fasta",
+                "00_reference/viral_reference.upper.fasta.fai",
+                "pipeline_info"
+            ],
+            [
+                "viral_reference.merged.fasta:md5,887fe7e90382b03d3e9aabb2b03f2ede",
+                "viral_reference.upper.fasta.fai:md5,c1207acbd8f4d0ce7d301a735c40b378"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "24.10.4"
+        },
+        "timestamp": "2025-02-14T16:06:51.059956"
+    },
+    "refs_annotate_flu_ref": {
+        "content": [
+            10,
+            [
+                "00_reference",
+                "00_reference/viral_reference.merged.fasta",
+                "00_reference/viral_reference.merged.fasta.fai",
+                "05_ref_annotation",
+                "05_ref_annotation/viral_reference",
+                "05_ref_annotation/viral_reference.merged.gff",
+                "05_ref_annotation/viral_reference/gfflu-outdir",
+                "05_ref_annotation/viral_reference/gfflu-outdir/A_United_Kingdom_1_1933_H1N1_NA.split.blastx.tsv",
+                "05_ref_annotation/viral_reference/gfflu-outdir/A_United_Kingdom_1_1933_H1N1_NA.split.faa",
+                "05_ref_annotation/viral_reference/gfflu-outdir/A_United_Kingdom_1_1933_H1N1_NA.split.gbk",
+                "05_ref_annotation/viral_reference/gfflu-outdir/A_United_Kingdom_1_1933_H1N1_NA.split.miniprot.gff",
+                "05_ref_annotation/viral_reference/gfflu-outdir/A_United_Kingdom_1_1933_H1N1_NA.split.snpeff.gff",
+                "05_ref_annotation/viral_reference/gfflu-outdir/H1N1pdm_HA.split.blastx.tsv",
+                "05_ref_annotation/viral_reference/gfflu-outdir/H1N1pdm_HA.split.faa",
+                "05_ref_annotation/viral_reference/gfflu-outdir/H1N1pdm_HA.split.gbk",
+                "05_ref_annotation/viral_reference/gfflu-outdir/H1N1pdm_HA.split.miniprot.gff",
+                "05_ref_annotation/viral_reference/gfflu-outdir/H1N1pdm_HA.split.snpeff.gff",
+                "05_ref_annotation/viral_reference/gfflu-outdir/H1N1pdm_NS.split.blastx.tsv",
+                "05_ref_annotation/viral_reference/gfflu-outdir/H1N1pdm_NS.split.faa",
+                "05_ref_annotation/viral_reference/gfflu-outdir/H1N1pdm_NS.split.gbk",
+                "05_ref_annotation/viral_reference/gfflu-outdir/H1N1pdm_NS.split.miniprot.gff",
+                "05_ref_annotation/viral_reference/gfflu-outdir/H1N1pdm_NS.split.snpeff.gff",
+                "05_ref_annotation/viral_reference/gfflu-outdir/H1N1pdm_PA.split.blastx.tsv",
+                "05_ref_annotation/viral_reference/gfflu-outdir/H1N1pdm_PA.split.faa",
+                "05_ref_annotation/viral_reference/gfflu-outdir/H1N1pdm_PA.split.gbk",
+                "05_ref_annotation/viral_reference/gfflu-outdir/H1N1pdm_PA.split.miniprot.gff",
+                "05_ref_annotation/viral_reference/gfflu-outdir/H1N1pdm_PA.split.snpeff.gff",
+                "pipeline_info"
+            ],
+            [
+                "viral_reference.merged.fasta:md5,a9cd47d54a178c320b7313e984cf5461",
+                "viral_reference.merged.fasta.fai:md5,4d31c9b8cc8ba62c4d00a12b7a141df3",
+                "A_United_Kingdom_1_1933_H1N1_NA.split.blastx.tsv:md5,79fc6d2035d682bbc6dc419b3fa7c689",
+                "A_United_Kingdom_1_1933_H1N1_NA.split.faa:md5,876b93dbe0607e38068a41148588c34b",
+                "A_United_Kingdom_1_1933_H1N1_NA.split.gbk:md5,796f141d6a0a94dbb09ee2e8b70f4f89",
+                "A_United_Kingdom_1_1933_H1N1_NA.split.miniprot.gff:md5,91fc69ffb599589086c686e752cc3472",
+                "A_United_Kingdom_1_1933_H1N1_NA.split.snpeff.gff:md5,84dbe2f954f4bcf972e09d84795be366",
+                "H1N1pdm_HA.split.blastx.tsv:md5,d214d26634d45c2111bead751565a25c",
+                "H1N1pdm_HA.split.faa:md5,6146b2cfe236b9caab32c2074595efb8",
+                "H1N1pdm_HA.split.gbk:md5,d450c2ff2d629f3c90b81c72e88433ad",
+                "H1N1pdm_HA.split.miniprot.gff:md5,75dc04cbd6f2bf6e7c5e0f82039ceb2b",
+                "H1N1pdm_HA.split.snpeff.gff:md5,6cb60aa158eb3aa3da83b8fb078324c3",
+                "H1N1pdm_NS.split.blastx.tsv:md5,0fa897089a88e1b60f97508625e5bda9",
+                "H1N1pdm_NS.split.faa:md5,55e7c4a97e1b792c442309c4abc42e4f",
+                "H1N1pdm_NS.split.gbk:md5,a9fabae1fb3dcc0d86736aded6d8da00",
+                "H1N1pdm_NS.split.miniprot.gff:md5,f4c95ee3d21498911e22889fb3a464ae",
+                "H1N1pdm_NS.split.snpeff.gff:md5,b2b157ba7b472f11e65426b3e6f231d7",
+                "H1N1pdm_PA.split.blastx.tsv:md5,7fef68014e0ad5ea39ef0c20eff9dd44",
+                "H1N1pdm_PA.split.faa:md5,9c3a56665a36361cbdd8d61f8a19339d",
+                "H1N1pdm_PA.split.gbk:md5,1385a2582056b6a1a1703b776dc0648f",
+                "H1N1pdm_PA.split.miniprot.gff:md5,108ac8b6950b4a1fd915f7ec8f36cb47",
+                "H1N1pdm_PA.split.snpeff.gff:md5,76e5f5e8ad9d2d2733a2d2bf12652215"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "24.10.4"
+        },
+        "timestamp": "2025-02-14T16:07:05.041001"
+    },
+    "refs_host_genome_resolve_illumina": {
+        "content": [
+            20,
+            [
+                "00_reference",
+                "00_reference/SARS-CoV-2.fasta.fai",
+                "02_host_removal",
+                "02_host_removal/FAY66992_BC15.host.sorted.bam",
+                "02_host_removal/FAY66992_BC15.host.sorted.bam.bai",
+                "02_host_removal/FAY66992_BC23.host.sorted.bam",
+                "02_host_removal/FAY66992_BC23.host.sorted.bam.bai",
+                "02_host_removal/stats",
+                "02_host_removal/stats/FAY66992_BC15.host.flagstat",
+                "02_host_removal/stats/FAY66992_BC15.host.idxstats",
+                "02_host_removal/stats/FAY66992_BC15.host.stats",
+                "02_host_removal/stats/FAY66992_BC23.host.flagstat",
+                "02_host_removal/stats/FAY66992_BC23.host.idxstats",
+                "02_host_removal/stats/FAY66992_BC23.host.stats",
+                "03_viral_reads",
+                "03_viral_reads/FAY66992_BC15.viral_1.fastq.gz",
+                "03_viral_reads/FAY66992_BC23.viral_1.fastq.gz",
+                "pipeline_info"
+            ],
+            [
+                "SARS-CoV-2.fasta.fai:md5,6806a14930eab7e2de4e9776d79bcab2",
+                "FAY66992_BC15.host.sorted.bam:md5,cb5201e40b6c665c2c09277cee3e281c",
+                "FAY66992_BC15.host.sorted.bam.bai:md5,8e6acc7f50292c77c31c2434daff7b1c",
+                "FAY66992_BC23.host.sorted.bam:md5,7131b8ce8fb08e0cc3c47b5498371e43",
+                "FAY66992_BC23.host.sorted.bam.bai:md5,b500b9e5bbbfa3d1f00391c1d2049d82",
+                "FAY66992_BC15.host.flagstat:md5,97c4d446d23e33217115d33debfdd7fb",
+                "FAY66992_BC15.host.idxstats:md5,e1c6d291c21fd6a4e3ebf2e0b56bdeba",
+                "FAY66992_BC15.host.stats:md5,d8672e15b5110c7722bbb854e2067a73",
+                "FAY66992_BC23.host.flagstat:md5,e2060f460793696320d456702d2b3ef4",
+                "FAY66992_BC23.host.idxstats:md5,c66dbaa2850b0c0d889befe292b5db20",
+                "FAY66992_BC23.host.stats:md5,7a9f72a103f004d551de931b0afb6032",
+                "FAY66992_BC15.viral_1.fastq.gz:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "FAY66992_BC23.viral_1.fastq.gz:md5,d41d8cd98f00b204e9800998ecf8427e"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "24.10.4"
+        },
+        "timestamp": "2025-02-14T16:06:13.60015"
+    },
+    "refs_merge_refs": {
+        "content": [
+            3,
+            [
+                "00_reference",
+                "00_reference/viral_reference.merged.fasta",
+                "00_reference/viral_reference.merged.fasta.fai",
+                "pipeline_info"
+            ],
+            [
+                "viral_reference.merged.fasta:md5,887fe7e90382b03d3e9aabb2b03f2ede",
+                "viral_reference.merged.fasta.fai:md5,c1207acbd8f4d0ce7d301a735c40b378"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "24.10.4"
+        },
+        "timestamp": "2025-02-14T16:06:42.219565"
+    }
+}

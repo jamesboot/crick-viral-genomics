@@ -1,0 +1,41 @@
+{
+    "assembly_illumina": {
+        "content": [
+            9,
+            [
+                "00_reference",
+                "00_reference/51-A_Spain_1810_2024_S51.tophits.fasta.fai",
+                "00_reference/viral_reference.merged.fasta",
+                "04_ref_assembly",
+                "04_ref_assembly/51-A_Spain_1810_2024_S51.blast.txt",
+                "04_ref_assembly/51-A_Spain_1810_2024_S51.filtered.fasta",
+                "04_ref_assembly/51-A_Spain_1810_2024_S51.ref_segs.txt",
+                "04_ref_assembly/51-A_Spain_1810_2024_S51.tophits.fasta",
+                "04_ref_assembly/cd_hit",
+                "04_ref_assembly/cd_hit/51-A_Spain_1810_2024_S51.fasta",
+                "04_ref_assembly/cd_hit/51-A_Spain_1810_2024_S51.fasta.clstr",
+                "04_ref_assembly/spades",
+                "04_ref_assembly/spades/51-A_Spain_1810_2024_S51",
+                "04_ref_assembly/spades/51-A_Spain_1810_2024_S51/spades",
+                "04_ref_assembly/spades/51-A_Spain_1810_2024_S51/spades/contigs.fasta",
+                "pipeline_info"
+            ],
+            [
+                "51-A_Spain_1810_2024_S51.tophits.fasta.fai:md5,cba9b4ace478fa5bc73284933526763c",
+                "viral_reference.merged.fasta:md5,887fe7e90382b03d3e9aabb2b03f2ede",
+                "51-A_Spain_1810_2024_S51.blast.txt:md5,652caaab3dc77cdddba3f4b05425cf15",
+                "51-A_Spain_1810_2024_S51.filtered.fasta:md5,7a80150d4785cd6c60b07055886b40a2",
+                "51-A_Spain_1810_2024_S51.ref_segs.txt:md5,d8870afcfcbc44c5b0aa981849d0c461",
+                "51-A_Spain_1810_2024_S51.tophits.fasta:md5,4f6fc8921940abe2780311d4ed7f9d6f",
+                "51-A_Spain_1810_2024_S51.fasta:md5,91857b4f86680a4e8871e74d0dafc4b3",
+                "51-A_Spain_1810_2024_S51.fasta.clstr:md5,59b668fec1082891e3d992b8c1a423d7",
+                "contigs.fasta:md5,049dc385d6f559981ab71fabac2f5fed"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "24.10.4"
+        },
+        "timestamp": "2025-02-14T16:15:13.645755"
+    }
+}

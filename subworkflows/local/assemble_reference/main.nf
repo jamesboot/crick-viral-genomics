@@ -3,29 +3,41 @@
 //
 
 include { SPADES_ASSEMBLE       } from '../../../modules/local/spades/assemble/main'
+include { FLYE                  } from '../../../modules/nf-core/flye/main'
 include { CDHIT_CDHIT           } from '../../../modules/nf-core/cdhit/cdhit/main'
 include { SEQTK_FASTA           } from '../../../modules/local/seqtk/fasta/main'
 include { BLAST_MAKEBLASTDB     } from '../../../modules/nf-core/blast/makeblastdb/main'
 include { BLAST_BLASTN          } from '../../../modules/nf-core/blast/blastn/main'
 include { BUILD_REFERENCE_FASTA } from '../../../modules/local/build_reference_fasta/main'
+include { PANGOLIN              } from '../../../modules/nf-core/pangolin/main.nf'
 
 
 workflow ASSEMBLE_REFERENCE {
     take:
-    fastq       // channel: [ val(meta), path(reads) ]
-    viral_fasta // channel: [ val(meta), path(reads) ]
+    fastq         // channel: [ val(meta), path(reads) ]
+    viral_fasta   // channel: [ val(meta), path(reads) ]
+    assemble_mode // val
 
     main:
     ch_versions = Channel.empty()
 
     //
-    // MODULE: First assembly of non-host reads
+    // MODULE: First assembly of reads
     //
-    SPADES_ASSEMBLE (
-        fastq
-    )
-    ch_contigs  = SPADES_ASSEMBLE.out.contigs
-    ch_versions = ch_versions.mix(SPADES_ASSEMBLE.out.versions)
+    if(assemble_mode == "illumina") {
+        SPADES_ASSEMBLE (
+            fastq
+        )
+        ch_contigs  = SPADES_ASSEMBLE.out.contigs
+        ch_versions = ch_versions.mix(SPADES_ASSEMBLE.out.versions)
+    } else {
+        FLYE (
+            fastq,
+            "--nano-raw"
+        )
+        ch_contigs  = FLYE.out.fasta
+        ch_versions = ch_versions.mix(FLYE.out.versions)
+    }
 
     //
     // MODULE: Cluster contigs

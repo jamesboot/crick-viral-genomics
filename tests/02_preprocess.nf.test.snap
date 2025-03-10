@@ -1,0 +1,177 @@
+{
+    "preprocess_cat_fastq_folder": {
+        "content": [
+            4,
+            [
+                "00_reference",
+                "00_reference/SARS-CoV-2.fasta.fai",
+                "pipeline_info"
+            ],
+            [
+                "SARS-CoV-2.fasta.fai:md5,6806a14930eab7e2de4e9776d79bcab2"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "24.10.4"
+        },
+        "timestamp": "2025-02-14T15:35:55.789287"
+    },
+    "preprocess_trim_illumina": {
+        "content": [
+            12,
+            [
+                "00_reference",
+                "00_reference/viral_reference.merged.fasta",
+                "00_reference/viral_reference.merged.fasta.fai",
+                "01_qc",
+                "01_qc/fastqc",
+                "01_qc/fastqc/raw",
+                "01_qc/fastqc/raw/2-A_SouthSudan_1029_2024_raw_1_fastqc.html",
+                "01_qc/fastqc/raw/2-A_SouthSudan_1029_2024_raw_1_fastqc.zip",
+                "01_qc/fastqc/raw/2-A_SouthSudan_1029_2024_raw_2_fastqc.html",
+                "01_qc/fastqc/raw/2-A_SouthSudan_1029_2024_raw_2_fastqc.zip",
+                "01_qc/fastqc/raw/20-A_Tajikistan_12-928_2023_raw_1_fastqc.html",
+                "01_qc/fastqc/raw/20-A_Tajikistan_12-928_2023_raw_1_fastqc.zip",
+                "01_qc/fastqc/raw/20-A_Tajikistan_12-928_2023_raw_2_fastqc.html",
+                "01_qc/fastqc/raw/20-A_Tajikistan_12-928_2023_raw_2_fastqc.zip",
+                "01_qc/fastqc/raw/51-A_Spain_1810_2024_S51_raw_1_fastqc.html",
+                "01_qc/fastqc/raw/51-A_Spain_1810_2024_S51_raw_1_fastqc.zip",
+                "01_qc/fastqc/raw/51-A_Spain_1810_2024_S51_raw_2_fastqc.html",
+                "01_qc/fastqc/raw/51-A_Spain_1810_2024_S51_raw_2_fastqc.zip",
+                "01_qc/fastqc/trimmed",
+                "01_qc/fastqc/trimmed/2-A_SouthSudan_1029_2024_trimmed_1_fastqc.html",
+                "01_qc/fastqc/trimmed/2-A_SouthSudan_1029_2024_trimmed_1_fastqc.zip",
+                "01_qc/fastqc/trimmed/2-A_SouthSudan_1029_2024_trimmed_2_fastqc.html",
+                "01_qc/fastqc/trimmed/2-A_SouthSudan_1029_2024_trimmed_2_fastqc.zip",
+                "01_qc/fastqc/trimmed/20-A_Tajikistan_12-928_2023_trimmed_1_fastqc.html",
+                "01_qc/fastqc/trimmed/20-A_Tajikistan_12-928_2023_trimmed_1_fastqc.zip",
+                "01_qc/fastqc/trimmed/20-A_Tajikistan_12-928_2023_trimmed_2_fastqc.html",
+                "01_qc/fastqc/trimmed/20-A_Tajikistan_12-928_2023_trimmed_2_fastqc.zip",
+                "01_qc/fastqc/trimmed/51-A_Spain_1810_2024_S51_trimmed_1_fastqc.html",
+                "01_qc/fastqc/trimmed/51-A_Spain_1810_2024_S51_trimmed_1_fastqc.zip",
+                "01_qc/fastqc/trimmed/51-A_Spain_1810_2024_S51_trimmed_2_fastqc.html",
+                "01_qc/fastqc/trimmed/51-A_Spain_1810_2024_S51_trimmed_2_fastqc.zip",
+                "01_qc/trimming",
+                "01_qc/trimming/2-A_SouthSudan_1029_2024.fastp.html",
+                "01_qc/trimming/2-A_SouthSudan_1029_2024.fastp.json",
+                "01_qc/trimming/2-A_SouthSudan_1029_2024.fastp.log",
+                "01_qc/trimming/20-A_Tajikistan_12-928_2023.fastp.html",
+                "01_qc/trimming/20-A_Tajikistan_12-928_2023.fastp.json",
+                "01_qc/trimming/20-A_Tajikistan_12-928_2023.fastp.log",
+                "01_qc/trimming/51-A_Spain_1810_2024_S51.fastp.html",
+                "01_qc/trimming/51-A_Spain_1810_2024_S51.fastp.json",
+                "01_qc/trimming/51-A_Spain_1810_2024_S51.fastp.log",
+                "pipeline_info"
+            ],
+            [
+                "viral_reference.merged.fasta:md5,887fe7e90382b03d3e9aabb2b03f2ede",
+                "viral_reference.merged.fasta.fai:md5,c1207acbd8f4d0ce7d301a735c40b378",
+                "2-A_SouthSudan_1029_2024_raw_1_fastqc.html:md5,4d825ce55c1e6024fa855049719c1eb7",
+                "2-A_SouthSudan_1029_2024_raw_1_fastqc.zip:md5,58da42e2c5d55d7f0b075164902ddc63",
+                "2-A_SouthSudan_1029_2024_raw_2_fastqc.html:md5,415e9ae1d4ad20a60bf964164abc0279",
+                "2-A_SouthSudan_1029_2024_raw_2_fastqc.zip:md5,1f3c5e5e39977bb80d0fe6504e3f80a0",
+                "20-A_Tajikistan_12-928_2023_raw_1_fastqc.html:md5,f5f5ecb3b03a8d3d12a0236086dfd96d",
+                "20-A_Tajikistan_12-928_2023_raw_1_fastqc.zip:md5,e500e2836a46c53e91120ae2e0d96db5",
+                "20-A_Tajikistan_12-928_2023_raw_2_fastqc.html:md5,6da14e5e350305de035bb2b32e741032",
+                "20-A_Tajikistan_12-928_2023_raw_2_fastqc.zip:md5,b27a650e19f3b74f5df30559dc2eb475",
+                "51-A_Spain_1810_2024_S51_raw_1_fastqc.html:md5,bbc371660fb23a0faf6bfee3d2d9b779",
+                "51-A_Spain_1810_2024_S51_raw_1_fastqc.zip:md5,2bc6f28f9f5d9fc414e63f1e7136b71c",
+                "51-A_Spain_1810_2024_S51_raw_2_fastqc.html:md5,83c1db6f28bb9657136f8ed1577110cf",
+                "51-A_Spain_1810_2024_S51_raw_2_fastqc.zip:md5,a18a277ca16a25892eb457cc252d66f3",
+                "2-A_SouthSudan_1029_2024_trimmed_1_fastqc.html:md5,1af56f284d8d5a492f814b689b1d4055",
+                "2-A_SouthSudan_1029_2024_trimmed_1_fastqc.zip:md5,ff019507ca895ea0998a9f50161ac8fb",
+                "2-A_SouthSudan_1029_2024_trimmed_2_fastqc.html:md5,a720c312dc009abb356e6dcd34f6f463",
+                "2-A_SouthSudan_1029_2024_trimmed_2_fastqc.zip:md5,f694f97b031b778386960ee3da2444ed",
+                "20-A_Tajikistan_12-928_2023_trimmed_1_fastqc.html:md5,f09a9e9a3ed156c12e71d0db9e21e27e",
+                "20-A_Tajikistan_12-928_2023_trimmed_1_fastqc.zip:md5,745e9c05b993ef6796e85c10501f256d",
+                "20-A_Tajikistan_12-928_2023_trimmed_2_fastqc.html:md5,920e43e52193d89e49892cc1ebe75469",
+                "20-A_Tajikistan_12-928_2023_trimmed_2_fastqc.zip:md5,0363d2064a7d2590d14db2a7c6d8f1ee",
+                "51-A_Spain_1810_2024_S51_trimmed_1_fastqc.html:md5,4ad3306485f18dce2ba4d3c06a084dbf",
+                "51-A_Spain_1810_2024_S51_trimmed_1_fastqc.zip:md5,aaaef2a37cc8c5e27db97b8ed910ddd9",
+                "51-A_Spain_1810_2024_S51_trimmed_2_fastqc.html:md5,6827d468a1c0478e194ac3db41c88eb7",
+                "51-A_Spain_1810_2024_S51_trimmed_2_fastqc.zip:md5,74f2788cae3671f4ff12c5933b045888",
+                "2-A_SouthSudan_1029_2024.fastp.html:md5,2959c4a18206940ef10121a2640f0429",
+                "2-A_SouthSudan_1029_2024.fastp.json:md5,279c4b44ba0d02affaa592a4b7d7445b",
+                "2-A_SouthSudan_1029_2024.fastp.log:md5,bc9b764673c4bc05d11bb2418613feb9",
+                "20-A_Tajikistan_12-928_2023.fastp.html:md5,5e432ab83dbf9d4f2fe1c6633f623f1e",
+                "20-A_Tajikistan_12-928_2023.fastp.json:md5,2631b7d55b7db93da3d9fd1cc77483e2",
+                "20-A_Tajikistan_12-928_2023.fastp.log:md5,1a71e70f41ac2f02b342f0c35b00749c",
+                "51-A_Spain_1810_2024_S51.fastp.html:md5,1a877cba1f63db9547f16ff095619e06",
+                "51-A_Spain_1810_2024_S51.fastp.json:md5,6d1bb1a0061398e3f15e6c519f640e32",
+                "51-A_Spain_1810_2024_S51.fastp.log:md5,6f428260fdcca9da8f2937d8eec810c8"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "24.10.4"
+        },
+        "timestamp": "2025-02-14T15:36:34.958668"
+    },
+    "preprocess_cat_fastq_singles": {
+        "content": [
+            4,
+            [
+                "00_reference",
+                "00_reference/SARS-CoV-2.fasta.fai",
+                "pipeline_info"
+            ],
+            [
+                "SARS-CoV-2.fasta.fai:md5,6806a14930eab7e2de4e9776d79bcab2"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "24.10.4"
+        },
+        "timestamp": "2025-02-14T15:35:47.277449"
+    },
+    "preprocess_trim_nanopore": {
+        "content": [
+            6,
+            [
+                "00_reference",
+                "00_reference/SARS-CoV-2.fasta.fai",
+                "01_qc",
+                "01_qc/toulligqc",
+                "01_qc/toulligqc/FAY66992_BC15_ONT",
+                "01_qc/toulligqc/FAY66992_BC15_ONT/images",
+                "01_qc/toulligqc/FAY66992_BC15_ONT/images/Channel_occupancy_of_the_flowcell.html",
+                "01_qc/toulligqc/FAY66992_BC15_ONT/images/Correlation_between_read_length_and_PHRED_score.html",
+                "01_qc/toulligqc/FAY66992_BC15_ONT/images/Distribution_of_read_lengths.html",
+                "01_qc/toulligqc/FAY66992_BC15_ONT/images/PHRED_score_density_distribution.html",
+                "01_qc/toulligqc/FAY66992_BC15_ONT/images/PHRED_score_distribution.html",
+                "01_qc/toulligqc/FAY66992_BC15_ONT/images/PHRED_score_over_time.html",
+                "01_qc/toulligqc/FAY66992_BC15_ONT/images/Read_count_histogram.html",
+                "01_qc/toulligqc/FAY66992_BC15_ONT/images/Read_length_over_time.html",
+                "01_qc/toulligqc/FAY66992_BC15_ONT/images/Yield_plot_through_time.html",
+                "01_qc/toulligqc/FAY66992_BC15_ONT/images/plotly.min.js",
+                "01_qc/toulligqc/FAY66992_BC15_ONT/report.data",
+                "01_qc/toulligqc/FAY66992_BC15_ONT/report.html",
+                "01_qc/toulligqc/FAY66992_BC23_ONT",
+                "01_qc/toulligqc/FAY66992_BC23_ONT/images",
+                "01_qc/toulligqc/FAY66992_BC23_ONT/images/Channel_occupancy_of_the_flowcell.html",
+                "01_qc/toulligqc/FAY66992_BC23_ONT/images/Correlation_between_read_length_and_PHRED_score.html",
+                "01_qc/toulligqc/FAY66992_BC23_ONT/images/Distribution_of_read_lengths.html",
+                "01_qc/toulligqc/FAY66992_BC23_ONT/images/PHRED_score_density_distribution.html",
+                "01_qc/toulligqc/FAY66992_BC23_ONT/images/PHRED_score_distribution.html",
+                "01_qc/toulligqc/FAY66992_BC23_ONT/images/PHRED_score_over_time.html",
+                "01_qc/toulligqc/FAY66992_BC23_ONT/images/Read_count_histogram.html",
+                "01_qc/toulligqc/FAY66992_BC23_ONT/images/Read_length_over_time.html",
+                "01_qc/toulligqc/FAY66992_BC23_ONT/images/Yield_plot_through_time.html",
+                "01_qc/toulligqc/FAY66992_BC23_ONT/images/plotly.min.js",
+                "01_qc/toulligqc/FAY66992_BC23_ONT/report.data",
+                "01_qc/toulligqc/FAY66992_BC23_ONT/report.html",
+                "pipeline_info"
+            ],
+            [
+                "SARS-CoV-2.fasta.fai:md5,6806a14930eab7e2de4e9776d79bcab2"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "24.10.4"
+        },
+        "timestamp": "2025-02-14T15:42:16.912363"
+    }
+}

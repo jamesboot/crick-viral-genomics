@@ -15,79 +15,13 @@ include { get_genome_attribute } from './modules/local/util/references/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    CONFIG FILES
+    WORKFLOW INIT
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-ch_multiqc_config = file("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
-ch_multiqc_logo = file("$projectDir/assets/The_Francis_Crick_Institute_logo.png", checkIfExists: true)
-ch_seq_sim_config = file(params.seq_sim_config, checkIfExists: true)
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    REFERENCES
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-def host_fasta = get_genome_attribute(params, 'fasta')
-def host_bwa   = get_genome_attribute(params, 'bwa'  )
-if(params.host_fasta) {
-    host_fasta = params.host_fasta
-}
-if(params.host_bwa) {
-    host_bwa = params.host_bwa
-}
-
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    INIT
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
+// Create workflow summary
 log.info summary_log(workflow, params, params.debug, params.monochrome_logs)
 def summary_params = params_summary_map(workflow, params, params.debug)
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    VALIDATE INPUTS
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-// Check manditory input parameters to see if the files exist if they have been specified
-// check_param_list = [
-// ]
-// for (param in check_param_list) {
-//     if (!param.value) {
-//         exit 1, "Required parameter not specified: ${param.key}"
-//     }
-//     else {
-//         file(param.value, checkIfExists: true)
-//     }
-// }
-
-if(!params.use_independant_refs && params.viral_fasta == null) {
-     exit 1, "Required parameter not specified: viral_fasta"
-}
-
-// If no data being generated, samplesheet is manditory
-if(!params.run_generate_reads && params.samplesheet == null) {
-     exit 1, "Required parameter not specified: samplesheet"
-}
-
-// Check non-manditory input parameters to see if the files exist if they have been specified
-check_param_list = [
-    params.samplesheet,
-    params.viral_gff,
-    params.host_fasta,
-    params.host_bwa,
-    params.seq_sim_ref_dir,
-    params.seq_sim_config,
-    params.primers_bed,
-    params.primers_fasta,
-    params.primers_csv
-]
-for (param in check_param_list) { if (param) { file(param, checkIfExists: true) } }
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -153,9 +87,56 @@ include { ILLUMINA_VARCALL                                } from './subworkflows
 */
 
 workflow {
+    //////////////////////////////////////
+    // INIT:
+    //////////////////////////////////////
+
+    // Load static config
+    ch_multiqc_config = file("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
+    ch_multiqc_logo   = file("$projectDir/assets/The_Francis_Crick_Institute_logo.png", checkIfExists: true)
+    ch_seq_sim_config = file(params.seq_sim_config, checkIfExists: true)
+
+    // Resolve references, load from genome if possible but then override from params if supplied
+    def host_fasta = get_genome_attribute(params, 'fasta')
+    def host_bwa   = get_genome_attribute(params, 'bwa'  )
+    if(params.host_fasta) {
+        host_fasta = params.host_fasta
+    }
+    if(params.host_bwa) {
+        host_bwa = params.host_bwa
+    }
+
     // Init persistant channels
     ch_versions      = Channel.empty()
     ch_multiqc_files = Channel.empty()
+
+    //////////////////////////////////////
+    // CHECK PARAMS:
+    //////////////////////////////////////
+
+    // If using ref per sample, load from samplesheet, otherewise we need a ref dir or single fasta
+    if(!params.use_independant_refs && params.viral_fasta == null) {
+        exit 1, "Required parameter not specified: viral_fasta"
+    }
+
+    // If no data being generated, samplesheet is manditory
+    if(!params.run_generate_reads && params.samplesheet == null) {
+        exit 1, "Required parameter not specified: samplesheet"
+    }
+
+    // Check non-manditory input parameters to see if the files exist if they have been specified
+    check_param_list = [
+        params.samplesheet,
+        params.viral_gff,
+        params.host_fasta,
+        params.host_bwa,
+        params.seq_sim_ref_dir,
+        params.seq_sim_config,
+        params.primers_bed,
+        params.primers_fasta,
+        params.primers_csv
+    ]
+    check_param_list.each { param -> if (param) { file(param, checkIfExists: true) } }
 
     // Init variables
     def multi_ref = params.run_assemble_ref || params.use_independant_refs || params.run_iterative_align
@@ -174,6 +155,10 @@ workflow {
     if(params.viral_gff) {
         ch_viral_gff = file(params.viral_gff, checkIfExists: true)
     }
+
+    //////////////////////////////////////
+    // MAIN WORKFLOW:
+    //////////////////////////////////////
 
     //
     // MODULE: Concat the reference files into one file
@@ -256,6 +241,29 @@ workflow {
                 [it, [read1]]
             }
         }
+
+        //
+        // CHANNEL: Check for folders and expand
+        //
+        ch_fastq_folder = ch_fastq.branch {
+            meta, fastq ->
+                single  : !fastq[0].isDirectory()
+                    return [ meta, fastq ]
+                folder: fastq[0].isDirectory()
+                    return [ meta, fastq[0] ]
+        }
+        ch_fastq_folder_expanded = ch_fastq_folder.folder
+            .flatMap {
+                meta, folder ->
+                    def files = folder
+                        .listFiles()
+                        .findAll { it.name ==~ /.*\.(fastq|fq)(\.gz)?/ }
+                        .sort { it.name }
+                    files.collect { file ->
+                        [ meta, file ]
+                    }
+            }
+        ch_fastq = ch_fastq_folder.single.mix(ch_fastq_folder_expanded)
     }
 
     //
@@ -366,9 +374,14 @@ workflow {
         //
         // SUBWORKFLOW: Assemble reference from a list of possible references in the viral_fasta
         //
+        def assemble_mode = "illumina"
+        if(params.run_minimap_align) {
+            assemble_mode = "ont"
+        }
         ASSEMBLE_REFERENCE (
             ch_fastq,
-            ch_viral_fasta
+            ch_viral_fasta,
+            assemble_mode
         )
         ch_versions    = ch_versions.mix(ASSEMBLE_REFERENCE.out.versions)
         ch_viral_ref   = ASSEMBLE_REFERENCE.out.viral_ref
@@ -393,11 +406,9 @@ workflow {
             false,
             "split"
         )
-        ch_split_refs = SPLIT_REF.out.file.flatMap 
-        { meta, files ->
-            files.collect { file ->
-                [meta, file]
-                }
+        ch_split_refs = SPLIT_REF.out.file
+        .flatMap { meta, files ->
+            files.collect { file -> [meta, file] }
         }
 
         //
@@ -751,7 +762,10 @@ workflow {
         ch_consensus = ch_con_ref.map{[it[0], it[1]]}
         ch_viral_ref = ch_con_ref.map{[it[0], it[2]]}
     }
-    if(!multi_ref && is_gff) {
+    if(!multi_ref && params.annotate_flu_ref) {
+        ch_viral_gff = ch_viral_gff.collect()
+    }
+    else if(!multi_ref && is_gff) {
         ch_viral_gff = Channel.of(ch_viral_gff).map{[[], it]}.collect()
     }
     else if (multi_ref && is_gff) {
@@ -847,47 +861,49 @@ workflow {
     ch_versions      = ch_versions.mix(MOSDEPTH.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]})
 
-    //
-    // MODULE: Merge ref and conesensus seq into one file
-    //
-    ch_consensus_fasta_merge_ref = ch_viral_ref
-        .map{it[1]}
-        .mix(ch_consensus.map{it[1]})
-        .flatten()
-        .toSortedList()
-        .map{[[id:"consensus"], it]}
-    MERGE_CONSENSUS_REF (
-        ch_consensus_fasta_merge_ref,
-        [],
-        true,
-        "merged"
-    )
-    ch_merged_consensus_ref = MERGE_CONSENSUS_REF.out.file
-
-    //
-    // MODULE: conesensus seqs into one file
-    //
-    ch_consensus_fasta_merge = ch_consensus
-        .map{it[1]}
-        .flatten()
-        .toSortedList()
-        .map{[[id:"consensus"], it]}
-    MERGE_CONSENSUS (
-        ch_consensus_fasta_merge,
-        [],
-        true,
-        "merged"
-    )
-    ch_merged_consensus = MERGE_CONSENSUS_REF.out.file
-
-    //
-    // MODULE: MSA
-    //
-    if(params.run_msa) {
-        MUSCLE (
-            ch_merged_consensus_ref
+    if(params.run_nanopore_varcall || params.run_illumina_varcall) {
+        //
+        // MODULE: Merge ref and conesensus seq into one file
+        //
+        ch_consensus_fasta_merge_ref = ch_viral_ref
+            .map{it[1]}
+            .mix(ch_consensus.map{it[1]})
+            .flatten()
+            .toSortedList()
+            .map{[[id:"consensus"], it]}
+        MERGE_CONSENSUS_REF (
+            ch_consensus_fasta_merge_ref,
+            [],
+            true,
+            "merged"
         )
-        ch_versions = ch_versions.mix(MUSCLE.out.versions)
+        ch_merged_consensus_ref = MERGE_CONSENSUS_REF.out.file
+
+        //
+        // MODULE: conesensus seqs into one file
+        //
+        ch_consensus_fasta_merge = ch_consensus
+            .map{it[1]}
+            .flatten()
+            .toSortedList()
+            .map{[[id:"consensus"], it]}
+        MERGE_CONSENSUS (
+            ch_consensus_fasta_merge,
+            [],
+            true,
+            "merged"
+        )
+        ch_merged_consensus = MERGE_CONSENSUS.out.file
+
+        //
+        // MODULE: MSA
+        //
+        if(params.run_msa) {
+            MUSCLE (
+                ch_merged_consensus_ref
+            )
+            ch_versions = ch_versions.mix(MUSCLE.out.versions)
+        }
     }
 
     //
@@ -895,7 +911,7 @@ workflow {
     //
     if(params.run_panglolin) {
         PANGOLIN (
-            ch_consensus
+            ch_merged_consensus
         )
         ch_versions      = ch_versions.mix(PANGOLIN.out.versions)
         ch_multiqc_files = ch_multiqc_files.mix(PANGOLIN.out.report.collect{it[1]})
@@ -921,49 +937,51 @@ workflow {
         ch_versions = ch_versions.mix(NEXTCLADE_RUN.out.versions)
     }
 
-    //
-    // CHANNEL: Prepare VCF files for report
-    //
-    ch_vcf_files = ch_vcf_files
-        .groupTuple(by: [0])
-        .map { meta, files, callers, order ->
-                def sorted_files_and_callers = [files, callers].transpose().sort { a, b ->
-                order[callers.indexOf(a[1])] <=> order[callers.indexOf(b[1])]
-            }.transpose()
-            [meta, sorted_files_and_callers[0], sorted_files_and_callers[1]]
-        }
+    if(params.run_reporting) {
+        //
+        // CHANNEL: Prepare VCF files for report
+        //
+        ch_vcf_files = ch_vcf_files
+            .groupTuple(by: [0])
+            .map { meta, files, callers, order ->
+                    def sorted_files_and_callers = [files, callers].transpose().sort { a, b ->
+                    order[callers.indexOf(a[1])] <=> order[callers.indexOf(b[1])]
+                }.transpose()
+                [meta, sorted_files_and_callers[0], sorted_files_and_callers[1]]
+            }
 
-    //
-    // MODULE: Generate VCF report
-    //
-    VCF_REPORT (
-        ch_vcf_files
-    )
+        //
+        // MODULE: Generate VCF report
+        //
+        VCF_REPORT (
+            ch_vcf_files
+        )
 
-    //
-    // MODULE: Track software versions
-    //
-    CUSTOM_DUMPSOFTWAREVERSIONS (
-        ch_versions.unique().collectFile()
-    )
+        //
+        // MODULE: Track software versions
+        //
+        CUSTOM_DUMPSOFTWAREVERSIONS (
+            ch_versions.unique().collectFile()
+        )
 
-    //
-    // MODULE: MULTIQC
-    //
-    workflow_summary = multiqc_summary(workflow, params)
-    ch_workflow_summary = Channel.value(workflow_summary)
-    ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
-    ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
-    ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
+        //
+        // MODULE: MULTIQC
+        //
+        workflow_summary = multiqc_summary(workflow, params)
+        ch_workflow_summary = Channel.value(workflow_summary)
+        ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
+        ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
+        ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
 
-    MULTIQC (
-        ch_multiqc_files.collect(),
-        ch_multiqc_config,
-        [],
-        ch_multiqc_logo,
-        [],
-        []
-    )
+        MULTIQC (
+            ch_multiqc_files.collect(),
+            ch_multiqc_config,
+            [],
+            ch_multiqc_logo,
+            [],
+            []
+        )
+    }
 }
 
 /*
