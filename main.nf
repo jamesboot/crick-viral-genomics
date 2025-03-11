@@ -867,21 +867,24 @@ workflow {
         }
     }
 
-    //
-    // MODULE: Calculate the pileip 
-    //
-    SAMTOOLS_MPILEUP (
-        ch_bam_bai_fasta_fai.map{[it[0], it[1], []]},
-        ch_bam_bai_fasta_fai.map{[it[3]]}
-    )
-    ch_versions = ch_versions.mix(SAMTOOLS_MPILEUP.out.versions)
 
-    //
-    // MODULE: Generate count table
-    //
-    GEN_COUNT_TABLE (
-        SAMTOOLS_MPILEUP.out.mpileup
-    )
+    if(params.run_gen_count_table) {
+        //
+        // MODULE: Calculate the pileip 
+        //
+        SAMTOOLS_MPILEUP (
+            ch_bam_bai_fasta_fai.map{[it[0], it[1], []]},
+            ch_bam_bai_fasta_fai.map{[it[3]]}
+        )
+        ch_versions = ch_versions.mix(SAMTOOLS_MPILEUP.out.versions)
+
+        //
+        // MODULE: Generate count table
+        //
+        GEN_COUNT_TABLE (
+            SAMTOOLS_MPILEUP.out.mpileup
+        )
+    }
 
     //
     // MODULE: Genome-wide coverage
