@@ -52,6 +52,12 @@ module_order:
       path_filters:
         - "*host*"
   - samtools:
+      name: "ALINGMENT: Contaminent Genome Alignment Stats"
+      anchor: "samtools_contaminent"
+      info: ""
+      path_filters:
+        - "*contam*"
+  - samtools:
       name: "ALINGMENT: Viral Genome Alignment Stats"
       anchor: "samtools_viral"
       info: ""
@@ -85,6 +91,8 @@ remove_sections:
 fn_clean_trim:
   - ".host"
   - ".host.stats"
+  - ".contam"
+  - ".contam.stats"
   - ".viral"
   - ".viral.stats"
 
