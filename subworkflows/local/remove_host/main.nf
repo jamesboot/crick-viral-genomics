@@ -1,5 +1,5 @@
 //
-// Remove host from illumina reads
+// Remove host from reads
 //
 
 include { GUNZIP as GUNZIP_FASTA                         } from '../../../modules/nf-core/gunzip/main'
@@ -120,6 +120,7 @@ workflow REMOVE_HOST {
     SAMTOOLS_VIEW_HOST (
         ch_host_bam_bai,
         [[],[]],
+        [],
         []
     )
     ch_versions  = ch_versions.mix(SAMTOOLS_VIEW_HOST.out.versions)
@@ -132,7 +133,7 @@ workflow REMOVE_HOST {
         ch_viral_bam,
         [[],[]]
     )
-    ch_versions  = ch_versions.mix(SAMTOOLS_VIEW_HOST.out.versions)
+    ch_versions  = ch_versions.mix(SAMTOOLS_SORT_VIRAL.out.versions)
     ch_viral_bam = SAMTOOLS_SORT_VIRAL.out.bam
 
     //

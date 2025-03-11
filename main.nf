@@ -74,6 +74,7 @@ include { MULTIQC                                } from './modules/nf-core/multi
 include { FASTQ_TRIM_FASTP_FASTQC                         } from './subworkflows/nf-core/fastq_trim_fastp_fastqc/main'
 include { FASTQ_NANOPORE_QC_TRIM                          } from './subworkflows/local/fastq_nanopore_qc_trim/main'
 include { REMOVE_HOST                                     } from './subworkflows/local/remove_host/main'
+include { REMOVE_CONTAMINANTS                             } from './subworkflows/local/remove_contaminants/main'
 include { ASSEMBLE_REFERENCE                              } from './subworkflows/local/assemble_reference/main'
 include { BAM_SORT_STATS_SAMTOOLS as BAM_VIRAL_SORT_STATS } from './subworkflows/nf-core/bam_sort_stats_samtools/main'
 include { PREPARE_PRIMERS                                 } from './subworkflows/local/prepare_primers/main'
@@ -130,6 +131,7 @@ workflow {
         params.viral_gff,
         params.host_fasta,
         params.host_bwa,
+        params.contaminant_fasta,
         params.seq_sim_ref_dir,
         params.seq_sim_config,
         params.primers_bed,
@@ -150,6 +152,10 @@ workflow {
     ch_host_bwa_index = []
     if(host_bwa) {
         ch_host_bwa_index = file(host_bwa, checkIfExists: true)
+    }
+    ch_contaminent_fasta = []
+    if(params.contaminant_fasta) {
+        ch_contaminent_fasta = Channel.of(file(params.contaminant_fasta, checkIfExists: true)).map{[[id:"contaminent"], it]}.collect()
     }
     ch_viral_gff = [[],[]]
     if(params.viral_gff) {
@@ -180,6 +186,7 @@ workflow {
             "merged"
         )
         ch_viral_fasta = MERGE_REFS.out.file.mix(ch_viral_fasta_merge.single)
+        ch_viral_fasta = ch_viral_fasta.map{ [ it[0], (it[1] instanceof List ? it[1][0] : it[1] ) ] }
     }
 
     //
@@ -389,6 +396,29 @@ workflow {
     } else {
         ch_viral_ref   = ch_viral_fasta
         ch_fastq_fasta = ch_fastq.combine(ch_viral_ref.map{it[1]})
+    }
+
+    //
+    // SUBWORKFLOW: Remove contaminent reads
+    //
+    if(params.run_remove_contaminant_reads && params.contaminant_fasta != null) {
+        def remove_contaminent_mode = "illumina"
+        if(params.run_minimap_align) {
+            remove_contaminent_mode = "ont"
+        }
+        REMOVE_CONTAMINANTS (
+            ch_fastq,
+            ch_viral_ref,
+            ch_contaminent_fasta,
+            remove_contaminent_mode,
+            multi_ref
+
+        )
+        ch_versions      = ch_versions.mix(REMOVE_CONTAMINANTS.out.versions)
+        ch_fastq         = REMOVE_CONTAMINANTS.out.viral_fastq
+        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_CONTAMINANTS.out.contam_bam_stats.collect{it[1]})
+        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_CONTAMINANTS.out.contam_bam_flagstat.collect{it[1]})
+        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_CONTAMINANTS.out.contam_bam_idxstats.collect{it[1]})
     }
 
     //
@@ -709,7 +739,7 @@ workflow {
     else {
         ch_bam_bai_fasta_fai = ch_primer_trimmed_bam_bai
             .combine(ch_viral_ref_fasta_fai)
-            .map{ [it[0], it[1], it[2], it[4][0], it[5]] }
+            .map{ [it[0], it[1], it[2], it[4], it[5]] }
     }
 
     //
@@ -783,29 +813,15 @@ workflow {
     //
     // MODULE: Quast assembly QC
     //
-    QUAST (
-        ch_consensus,
-        ch_viral_ref,
-        ch_viral_gff
-    )
-    ch_versions      = ch_versions.mix(QUAST.out.versions)
-    ch_multiqc_files = ch_multiqc_files.mix(QUAST.out.tsv.collect{it[1]})
-
-    //
-    // MODULE: Calculate the pileip 
-    //
-    SAMTOOLS_MPILEUP (
-        ch_bam_bai_fasta_fai.map{[it[0], it[1], []]},
-        ch_bam_bai_fasta_fai.map{[it[3]]}
-    )
-    ch_versions = ch_versions.mix(SAMTOOLS_MPILEUP.out.versions)
-
-    //
-    // MODULE: Generate count table
-    //
-    GEN_COUNT_TABLE (
-        SAMTOOLS_MPILEUP.out.mpileup
-    )
+    if(params.run_illumina_varcall || params.run_nanopore_varcall) {
+        QUAST (
+            ch_consensus,
+            ch_viral_ref,
+            ch_viral_gff
+        )
+        ch_versions      = ch_versions.mix(QUAST.out.versions)
+        ch_multiqc_files = ch_multiqc_files.mix(QUAST.out.tsv.collect{it[1]})
+    }
 
     if(params.viral_gff || params.annotate_flu_ref) {
         //
@@ -849,6 +865,25 @@ workflow {
             ch_multiqc_files = ch_multiqc_files.mix(SNPEFF_ANN.out.csv.collect{it[1]})
             ch_vcf_files     = ch_vcf_files.mix(SNPEFF_ANN.out.vcf.map{[it[0], it[1], "snpeff", 4]})
         }
+    }
+
+
+    if(params.run_gen_count_table) {
+        //
+        // MODULE: Calculate the pileip 
+        //
+        SAMTOOLS_MPILEUP (
+            ch_bam_bai_fasta_fai.map{[it[0], it[1], []]},
+            ch_bam_bai_fasta_fai.map{[it[3]]}
+        )
+        ch_versions = ch_versions.mix(SAMTOOLS_MPILEUP.out.versions)
+
+        //
+        // MODULE: Generate count table
+        //
+        GEN_COUNT_TABLE (
+            SAMTOOLS_MPILEUP.out.mpileup
+        )
     }
 
     //
@@ -953,9 +988,11 @@ workflow {
         //
         // MODULE: Generate VCF report
         //
-        VCF_REPORT (
-            ch_vcf_files
-        )
+        if(params.run_nanopore_varcall || params.run_illumina_varcall) {
+            VCF_REPORT (
+                ch_vcf_files
+            )
+        }
 
         //
         // MODULE: Track software versions
