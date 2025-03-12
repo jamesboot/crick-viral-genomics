@@ -1,4 +1,4 @@
 id,read1,read2,ref
-P220,/Users/cheshic/dev/test_data/viral/aav/STR7502A1.filtered.merged.fastq.gz,,/Users/cheshic/dev/test_data/viral/aav/P220_AAV.fa
-P281,/Users/cheshic/dev/test_data/viral/aav/STR7502A2.filtered.merged.fastq.gz,,/Users/cheshic/dev/test_data/viral/aav/P281_AAV.fa
-P671,/Users/cheshic/dev/test_data/viral/aav/STR7502A3.filtered.merged.fastq.gz,,/Users/cheshic/dev/test_data/viral/aav/P671_AAV.fa
+P220,/Users/cheshic/dev/test_data/viral/aav/P220.filtered.merged.fastq.gz,,/Users/cheshic/dev/test_data/viral/aav/P220_AAV.fa
+P281,/Users/cheshic/dev/test_data/viral/aav/P281.filtered.merged.fastq.gz,,/Users/cheshic/dev/test_data/viral/aav/P281_AAV.fa
+P671,/Users/cheshic/dev/test_data/viral/aav/P671.filtered.merged.fastq.gz,,/Users/cheshic/dev/test_data/viral/aav/P671_AAV.fa

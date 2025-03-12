@@ -61,6 +61,7 @@ include { MUSCLE                                 } from './modules/nf-core/muscl
 include { PANGOLIN                               } from './modules/nf-core/pangolin/main'
 include { NEXTCLADE_DATASETGET                   } from './modules/nf-core/nextclade/datasetget/main'
 include { NEXTCLADE_RUN                          } from './modules/nf-core/nextclade/run/main'
+include { EXPORT_REPORT_DATA                     } from './modules/local/export_report_data/main'
 include { VCF_REPORT                             } from './modules/local/vcf_report/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS            } from './modules/local/custom_dumpsoftwareversions.nf'
 include { MULTIQC                                } from './modules/nf-core/multiqc/main'
@@ -96,6 +97,12 @@ workflow {
     ch_multiqc_config = file("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
     ch_multiqc_logo   = file("$projectDir/assets/The_Francis_Crick_Institute_logo.png", checkIfExists: true)
     ch_seq_sim_config = file(params.seq_sim_config, checkIfExists: true)
+
+    // Configure run_id
+    def run_id = params.run_id
+    if(params.run_id == null) {
+        run_id = "viral_genomics_pipeline"
+    }
 
     // Resolve references, load from genome if possible but then override from params if supplied
     def host_fasta = get_genome_attribute(params, 'fasta')
@@ -312,8 +319,9 @@ workflow {
     CAT_FASTQ (
         ch_fastq_merge.multiple
     )
-    ch_versions = ch_versions.mix(CAT_FASTQ.out.versions)
-    ch_fastq    = CAT_FASTQ.out.reads.mix(ch_fastq_merge.single)
+    ch_versions   = ch_versions.mix(CAT_FASTQ.out.versions)
+    ch_fastq      = CAT_FASTQ.out.reads.mix(ch_fastq_merge.single)
+    ch_orig_fastq = ch_fastq
 
     //
     // SECTION: Read QC and preprocessing
@@ -353,6 +361,7 @@ workflow {
     //
     // SUBWORKFLOW: Remove host reads
     //
+    ch_report_data_host = []
     if(params.run_remove_host_reads && host_fasta != null) {
         def remove_host_mode = "illumina"
         if(params.run_minimap_align) {
@@ -365,11 +374,12 @@ workflow {
             remove_host_mode
 
         )
-        ch_versions      = ch_versions.mix(REMOVE_HOST.out.versions)
-        ch_fastq         = REMOVE_HOST.out.viral_fastq
-        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_HOST.out.host_bam_stats.collect{it[1]})
-        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_HOST.out.host_bam_flagstat.collect{it[1]})
-        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_HOST.out.host_bam_idxstats.collect{it[1]})
+        ch_versions         = ch_versions.mix(REMOVE_HOST.out.versions)
+        ch_fastq            = REMOVE_HOST.out.viral_fastq
+        ch_multiqc_files    = ch_multiqc_files.mix(REMOVE_HOST.out.host_bam_stats.collect{it[1]})
+        ch_multiqc_files    = ch_multiqc_files.mix(REMOVE_HOST.out.host_bam_flagstat.collect{it[1]})
+        ch_multiqc_files    = ch_multiqc_files.mix(REMOVE_HOST.out.host_bam_idxstats.collect{it[1]})
+        ch_report_data_host = REMOVE_HOST.out.host_bam_flagstat.collect{it[1]}
     }
 
     //
@@ -401,6 +411,7 @@ workflow {
     //
     // SUBWORKFLOW: Remove contaminent reads
     //
+    ch_report_data_contam = []
     if(params.run_remove_contaminant_reads && params.contaminant_fasta != null) {
         def remove_contaminent_mode = "illumina"
         if(params.run_minimap_align) {
@@ -414,11 +425,12 @@ workflow {
             multi_ref
 
         )
-        ch_versions      = ch_versions.mix(REMOVE_CONTAMINANTS.out.versions)
-        ch_fastq         = REMOVE_CONTAMINANTS.out.viral_fastq
-        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_CONTAMINANTS.out.contam_bam_stats.collect{it[1]})
-        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_CONTAMINANTS.out.contam_bam_flagstat.collect{it[1]})
-        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_CONTAMINANTS.out.contam_bam_idxstats.collect{it[1]})
+        ch_versions           = ch_versions.mix(REMOVE_CONTAMINANTS.out.versions)
+        ch_fastq              = REMOVE_CONTAMINANTS.out.viral_fastq
+        ch_multiqc_files      = ch_multiqc_files.mix(REMOVE_CONTAMINANTS.out.contam_bam_stats.collect{it[1]})
+        ch_multiqc_files      = ch_multiqc_files.mix(REMOVE_CONTAMINANTS.out.contam_bam_flagstat.collect{it[1]})
+        ch_multiqc_files      = ch_multiqc_files.mix(REMOVE_CONTAMINANTS.out.contam_bam_idxstats.collect{it[1]})
+        ch_report_data_contam = REMOVE_CONTAMINANTS.out.contam_bam_idxstats.collect{it[1]}
     }
 
     //
@@ -986,6 +998,16 @@ workflow {
             }
 
         //
+        // MODULE: Export report data to pickle file
+        //
+        EXPORT_REPORT_DATA (
+            run_id,
+            ch_orig_fastq.map{it[1]}.collect(),
+            ch_report_data_host,
+            ch_report_data_contam
+        )
+
+        //
         // MODULE: Generate VCF report
         //
         if(params.run_nanopore_varcall || params.run_illumina_varcall) {
@@ -994,30 +1016,30 @@ workflow {
             )
         }
 
-        //
-        // MODULE: Track software versions
-        //
-        CUSTOM_DUMPSOFTWAREVERSIONS (
-            ch_versions.unique().collectFile()
-        )
+        // //
+        // // MODULE: Track software versions
+        // //
+        // CUSTOM_DUMPSOFTWAREVERSIONS (
+        //     ch_versions.unique().collectFile()
+        // )
 
-        //
-        // MODULE: MULTIQC
-        //
-        workflow_summary = multiqc_summary(workflow, params)
-        ch_workflow_summary = Channel.value(workflow_summary)
-        ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
-        ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
-        ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
+        // //
+        // // MODULE: MULTIQC
+        // //
+        // workflow_summary = multiqc_summary(workflow, params)
+        // ch_workflow_summary = Channel.value(workflow_summary)
+        // ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
+        // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
+        // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
 
-        MULTIQC (
-            ch_multiqc_files.collect(),
-            ch_multiqc_config,
-            [],
-            ch_multiqc_logo,
-            [],
-            []
-        )
+        // MULTIQC (
+        //     ch_multiqc_files.collect(),
+        //     ch_multiqc_config,
+        //     [],
+        //     ch_multiqc_logo,
+        //     [],
+        //     []
+        // )
     }
 }
 
