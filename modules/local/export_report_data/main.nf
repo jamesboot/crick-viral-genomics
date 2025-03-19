@@ -6,6 +6,8 @@ process EXPORT_REPORT_DATA {
 
     input:
     val(run_id)
+    val(summary)
+    path("data/samplesheet/*")
     path("data/toulligqc/*")
     path("data/samtools_host/*")
     path("data/samtools_contaminent/*")
@@ -20,7 +22,12 @@ process EXPORT_REPORT_DATA {
     """
     #!/usr/local/bin/python
 
+    import json
     from crick_genome_tools.reporting.report_data_parser import ReportDataParser
+
+    summary_dict = json.loads('${summary}')
+    with open("./data/summary.json", "w") as f:
+        json.dump(summary_dict, f)
 
     parser = ReportDataParser("./data")
     parser.get_data()

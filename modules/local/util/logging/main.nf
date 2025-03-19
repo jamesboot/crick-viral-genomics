@@ -213,6 +213,50 @@ def params_summary_map(workflow, params, debug) {
     return [ 'Core Nextflow options' : workflow_summary ] << params_summary
 }
 
+
+def params_summary_map_json(workflow, params, debug) {
+    def Map workflow_summary = [:]
+    if (workflow.revision) {
+        workflow_summary['revision'] = workflow.revision
+    }
+    workflow_summary['runName']      = workflow.runName
+    if (workflow.containerEngine) {
+        workflow_summary['containerEngine'] = workflow.containerEngine
+    }
+    workflow_summary['launchDir']  = workflow.launchDir.toString()
+    workflow_summary['workDir']    = workflow.workDir.toString()
+    workflow_summary['projectDir'] = workflow.projectDir.toString()
+    workflow_summary['profile']    = workflow.profile.toString()
+
+    // Get boilerplate parameters that should be present in every pipeline
+    def Map params_summary = [:]
+    def boilerpate_params = new LinkedHashMap()
+    boilerpate_params.put("outdir", params.outdir)
+    boilerpate_params.put("tracedir", params.tracedir)
+    boilerpate_params.put("publish_dir_mode", params.publish_dir_mode)
+    boilerpate_params.put("max_memory", params.max_memory)
+    boilerpate_params.put("max_cpus", params.max_cpus)
+    boilerpate_params.put("max_time", params.max_time)
+    params_summary.put("Core pipeline options", boilerpate_params)
+
+    def other_params = new LinkedHashMap()
+    def default_ignore = ['debug', 'ignore_params', 'tracedir', 'max_memory', 'max_cpus', 'max_time', 'genomes']
+    def params_ignore = params.ignore_params.split(',')
+    Set params_key_set = params.keySet()
+
+    params_key_set.each {
+        if(!debug && !params_ignore.contains(it) && !default_ignore.contains(it)) {
+            other_params.put(it, params.get(it))
+        }
+        else if(debug && !default_ignore.contains(it)) {
+            other_params.put(it, params.get(it))
+        }
+    }
+    params_summary.put("Pipeline options", other_params)
+    def final_summary = [ 'Core Nextflow options' : workflow_summary ] << params_summary
+    return groovy.json.JsonOutput.toJson(final_summary)
+}
+
 //
 // Get maximum number of characters across all parameter names
 //

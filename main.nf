@@ -8,10 +8,11 @@ nextflow.enable.dsl = 2
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { params_summary_map   } from './modules/local/util/logging/main'
-include { summary_log          } from './modules/local/util/logging/main'
-include { multiqc_summary      } from './modules/local/util/logging/main'
-include { get_genome_attribute } from './modules/local/util/references/main'
+include { params_summary_map      } from './modules/local/util/logging/main'
+include { params_summary_map_json } from './modules/local/util/logging/main'
+include { summary_log             } from './modules/local/util/logging/main'
+include { multiqc_summary         } from './modules/local/util/logging/main'
+include { get_genome_attribute    } from './modules/local/util/references/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1000,8 +1001,11 @@ workflow {
         //
         // MODULE: Export report data to pickle file
         //
+        def json_summary = params_summary_map_json(workflow, params, false)
         EXPORT_REPORT_DATA (
             run_id,
+            json_summary,
+            ch_samplesheet,
             ch_orig_fastq.map{it[1]}.collect(),
             ch_report_data_host,
             ch_report_data_contam
