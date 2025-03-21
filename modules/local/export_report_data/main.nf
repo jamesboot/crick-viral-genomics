@@ -11,6 +11,11 @@ process EXPORT_REPORT_DATA {
     path("data/toulligqc/*")
     path("data/samtools_host/*")
     path("data/samtools_contaminent/*")
+    path("data/samtools_alignment/*")
+    path("data/coverage/*")
+    path("data/consensus/*")
+    tuple val(vcf_tools), path("data/variants/*")
+    path("data/count_table/*")
 
     output:
     path("*.pkl"), emit: pkl

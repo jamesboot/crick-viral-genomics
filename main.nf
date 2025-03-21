@@ -630,12 +630,13 @@ workflow {
         ch_bam,
         [[],[]]
     )
-    ch_versions      = ch_versions.mix(BAM_VIRAL_SORT_STATS.out.versions)
-    ch_bam           = BAM_VIRAL_SORT_STATS.out.bam
-    ch_bai           = BAM_VIRAL_SORT_STATS.out.bai
-    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.stats.collect{it[1]})
-    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]})
-    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
+    ch_versions          = ch_versions.mix(BAM_VIRAL_SORT_STATS.out.versions)
+    ch_bam               = BAM_VIRAL_SORT_STATS.out.bam
+    ch_bai               = BAM_VIRAL_SORT_STATS.out.bai
+    ch_multiqc_files     = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.stats.collect{it[1]})
+    ch_multiqc_files     = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]})
+    ch_multiqc_files     = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
+    ch_report_data_align = BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]}
 
     //
     // CHANNEL: Join bam to bai
@@ -880,7 +881,7 @@ workflow {
         }
     }
 
-
+    ch_count_table = []
     if(params.run_gen_count_table) {
         //
         // MODULE: Calculate the pileip 
@@ -897,6 +898,7 @@ workflow {
         GEN_COUNT_TABLE (
             SAMTOOLS_MPILEUP.out.mpileup
         )
+        ch_count_table = GEN_COUNT_TABLE.out.csv
     }
 
     //
@@ -906,8 +908,9 @@ workflow {
         ch_bam_bai_fasta_fai.map{[it[0], it[1], it[2], []]},
         ch_bam_bai_fasta_fai.map{[it[0], it[3]]},
     )
-    ch_versions      = ch_versions.mix(MOSDEPTH.out.versions)
-    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]})
+    ch_versions             = ch_versions.mix(MOSDEPTH.out.versions)
+    ch_multiqc_files        = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]})
+    ch_report_data_coverage = MOSDEPTH.out.global_txt.collect{it[1]}
 
     if(params.run_nanopore_varcall || params.run_illumina_varcall) {
         //
@@ -997,6 +1000,14 @@ workflow {
                 }.transpose()
                 [meta, sorted_files_and_callers[0], sorted_files_and_callers[1]]
             }
+            .collect { meta, files, callers ->
+                    [callers, files.collect()]
+            }
+            .map { arr ->
+                def callers = arr[0]
+                def files = arr.indices.findAll { it % 2 == 1 }.collect { arr[it] }
+                [callers, files.flatten()]
+            }
 
         //
         // MODULE: Export report data to pickle file
@@ -1008,17 +1019,22 @@ workflow {
             ch_samplesheet,
             ch_orig_fastq.map{it[1]}.collect(),
             ch_report_data_host,
-            ch_report_data_contam
+            ch_report_data_contam,
+            ch_report_data_align,
+            ch_report_data_coverage,
+            ch_consensus.map{it[1]}.collect(),
+            ch_vcf_files,
+            ch_count_table.collect{it[1]}
         )
 
         //
         // MODULE: Generate VCF report
         //
-        if(params.run_nanopore_varcall || params.run_illumina_varcall) {
-            VCF_REPORT (
-                ch_vcf_files
-            )
-        }
+        // if(params.run_nanopore_varcall || params.run_illumina_varcall) {
+        //     VCF_REPORT (
+        //         ch_vcf_files
+        //     )
+        // }
 
         // //
         // // MODULE: Track software versions
