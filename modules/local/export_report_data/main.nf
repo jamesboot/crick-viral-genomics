@@ -7,6 +7,7 @@ process EXPORT_REPORT_DATA {
     input:
     val(run_id)
     val(summary)
+    path("data/ref/*")
     path("data/samplesheet/*")
     path("data/toulligqc/*")
     path("data/samtools_host/*")

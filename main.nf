@@ -1016,6 +1016,7 @@ workflow {
         EXPORT_REPORT_DATA (
             run_id,
             json_summary,
+            ch_viral_ref_fasta_fai.map{[it[1], it[2]]}.collect(),
             ch_samplesheet,
             ch_orig_fastq.map{it[1]}.collect(),
             ch_report_data_host,
