@@ -33,6 +33,7 @@ def summary_params = params_summary_map(workflow, params, params.debug)
 include { LINUX_COMMAND as MERGE_REFS            } from './modules/local/linux/command/main'
 include { SEQ_SIMULATOR                          } from './modules/local/seq_simulator/main'
 include { SAMPLESHEET_CHECK                      } from './modules/local/samplesheet/check/main'
+include { SNAPGENE_TO_GFF                        } from './modules/local/snapgene_to_gff/main'
 include { LINUX_COMMAND as FORCE_REF_UPPER       } from './modules/local/linux/command/main'
 include { CAT_FASTQ                              } from './modules/nf-core/cat/fastq/main'
 include { LINUX_COMMAND as SPLIT_REF             } from './modules/local/linux/command/main'
@@ -282,7 +283,7 @@ workflow {
     }
 
     //
-    // SECTION: Independant reference processing
+    // MODULE: Independant reference and gff processing
     //
     if(params.use_independant_refs) {
         ch_viral_fasta = ch_fastq
@@ -290,6 +291,24 @@ workflow {
                 def ref = file(it[0].ref, checkIfExists: true)
                 [[id:it[0].id], [ref]]
             }
+    }
+    if(params.use_independant_gff) {
+        ch_viral_gff = ch_fastq
+            .map{
+                def gff = file(it[0].gff, checkIfExists: true)
+                [[id:it[0].id], [gff]]
+            }
+    }
+
+    //
+    // MODULE: Convert snapgene to gff if required
+    //
+    // ch_viral_gff | view
+    if(params.convert_snapgene) {
+        SNAPGENE_TO_GFF (
+            ch_viral_gff
+        )
+        ch_viral_gff = SNAPGENE_TO_GFF.out.gff
     }
 
     //
@@ -762,6 +781,7 @@ workflow {
     ch_consensus = Channel.empty()
     ch_variants  = Channel.empty()
     ch_vcf_files = Channel.empty()
+    ch_compressed_vcf = []
     if(params.run_nanopore_varcall) {
         NANOPORE_VARCALL (
             ch_trimmed_bam_bai,
@@ -777,6 +797,12 @@ workflow {
         ch_consensus = NANOPORE_VARCALL.out.consensus
         ch_variants  = NANOPORE_VARCALL.out.clair3_vcf_tbi
         ch_vcf_files = NANOPORE_VARCALL.out.vcf_files
+        ch_compressed_vcf = NANOPORE_VARCALL.out.medaka_vcf_tbi.map{[it[1], it[2]]}
+            .mix(NANOPORE_VARCALL.out.clair3_vcf_tbi.map{[it[1], it[2]]})
+            .mix(NANOPORE_VARCALL.out.lofreq_vcf_tbi.map{[it[1], it[2]]})
+            .mix(NANOPORE_VARCALL.out.sniffles_vcf_tbi.map{[it[1], it[2]]})
+            .flatten()
+            .collect()
     } else if(params.run_illumina_varcall) {
         ILLUMINA_VARCALL(
             ch_bam_bai_fasta_fai
@@ -910,7 +936,7 @@ workflow {
     )
     ch_versions             = ch_versions.mix(MOSDEPTH.out.versions)
     ch_multiqc_files        = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]})
-    ch_report_data_coverage = MOSDEPTH.out.global_txt.collect{it[1]}
+    ch_report_data_coverage = MOSDEPTH.out.per_base_bed.collect{it[1]}
 
     if(params.run_nanopore_varcall || params.run_illumina_varcall) {
         //
@@ -1009,34 +1035,6 @@ workflow {
                 [callers, files.flatten()]
             }
 
-        //
-        // MODULE: Export report data to pickle file
-        //
-        def json_summary = params_summary_map_json(workflow, params, false)
-        EXPORT_REPORT_DATA (
-            run_id,
-            json_summary,
-            ch_viral_ref_fasta_fai.map{[it[1], it[2]]}.collect(),
-            ch_samplesheet,
-            ch_orig_fastq.map{it[1]}.collect(),
-            ch_report_data_host,
-            ch_report_data_contam,
-            ch_report_data_align,
-            ch_report_data_coverage,
-            ch_consensus.map{it[1]}.collect(),
-            ch_vcf_files,
-            ch_count_table.collect{it[1]}
-        )
-
-        //
-        // MODULE: Generate VCF report
-        //
-        // if(params.run_nanopore_varcall || params.run_illumina_varcall) {
-        //     VCF_REPORT (
-        //         ch_vcf_files
-        //     )
-        // }
-
         // //
         // // MODULE: Track software versions
         // //
@@ -1061,6 +1059,37 @@ workflow {
         //     [],
         //     []
         // )
+    }
+
+    if(params.run_report_export) {
+        // //
+        // // MODULE: Generate VCF report
+        // //
+        // if(params.run_nanopore_varcall || params.run_illumina_varcall) {
+        //     VCF_REPORT (
+        //         ch_vcf_files
+        //     )
+        // }
+
+        //
+        // MODULE: Export report data to pickle file
+        //
+        def json_summary = params_summary_map_json(workflow, params, false)
+        EXPORT_REPORT_DATA (
+            run_id,
+            json_summary,
+            ch_viral_ref_fasta_fai.map{[it[1], it[2]]}.collect(),
+            ch_samplesheet,
+            ch_orig_fastq.map{it[1]}.collect(),
+            ch_report_data_host,
+            ch_report_data_contam,
+            ch_report_data_align,
+            ch_report_data_coverage,
+            ch_consensus.map{it[1]}.collect(),
+            ch_vcf_files,
+            ch_compressed_vcf,
+            ch_count_table.collect{it[1]}
+        )
     }
 }
 

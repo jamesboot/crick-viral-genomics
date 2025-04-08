@@ -2,7 +2,7 @@ process EXPORT_REPORT_DATA {
     tag "$run_id"
     label 'process_single'
 
-    container "docker.io/thecrick/pipetech_genome_tools:0.3.22"
+    container "docker.io/thecrick/pipetech_genome_tools:0.3.41"
 
     input:
     val(run_id)
@@ -16,6 +16,7 @@ process EXPORT_REPORT_DATA {
     path("data/coverage/*")
     path("data/consensus/*")
     tuple val(vcf_tools), path("data/variants/*")
+    path("data/variants_compressed/*")
     path("data/count_table/*")
 
     output:
@@ -31,12 +32,14 @@ process EXPORT_REPORT_DATA {
     import json
     from crick_genome_tools.reporting.report_data_parser import ReportDataParser
 
+    vcf_tools = ${vcf_tools.collect{"\"${it}\""}}
+
     summary_dict = json.loads('${summary}')
     with open("./data/summary.json", "w") as f:
         json.dump(summary_dict, f)
 
-    parser = ReportDataParser("./data")
-    parser.get_data()
+    parser = ReportDataParser("data")
+    parser.get_data(vcf_tools)
     parser.save_data("${run_id}.pkl")
     """
 }
