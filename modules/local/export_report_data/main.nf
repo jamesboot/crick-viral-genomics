@@ -2,12 +2,13 @@ process EXPORT_REPORT_DATA {
     tag "$run_id"
     label 'process_single'
 
-    container "docker.io/thecrick/pipetech_genome_tools:0.3.41"
+    container "docker.io/thecrick/pipetech_genome_tools:0.3.44"
 
     input:
     val(run_id)
     val(summary)
     path("data/ref/*")
+    path("data/annotation/*")
     path("data/samplesheet/*")
     path("data/toulligqc/*")
     path("data/samtools_host/*")
@@ -30,7 +31,10 @@ process EXPORT_REPORT_DATA {
     #!/usr/local/bin/python
 
     import json
+    import logging
     from crick_genome_tools.reporting.report_data_parser import ReportDataParser
+
+    logging.basicConfig(level=logging.INFO)
 
     vcf_tools = ${vcf_tools.collect{"\"${it}\""}}
 

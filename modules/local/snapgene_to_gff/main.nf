@@ -5,7 +5,7 @@ process SNAPGENE_TO_GFF {
     container "docker.io/thecrick/pipetech_genome_tools:0.3.42"
 
     input:
-    tuple val(meta), path(snapgene)
+    tuple val(meta), path(snapgene), val(contig)
 
     output:
     tuple val(meta), path("*.gff"), emit: gff
@@ -21,6 +21,6 @@ process SNAPGENE_TO_GFF {
 
     from crick_genome_tools.io.snapgene import convert_to_gff
 
-    convert_to_gff("${snapgene}", "${prefix}.gff", "${meta.id}", "manual")
+    convert_to_gff("${snapgene}", "${prefix}.gff", "${contig}", "manual")
     """
 }

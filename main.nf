@@ -151,7 +151,7 @@ workflow {
 
     // Init variables
     def multi_ref = params.run_assemble_ref || params.use_independant_refs || params.run_iterative_align
-    def is_gff    = params.viral_gff != null || params.annotate_flu_ref
+    def is_gff    = params.viral_gff != null || params.annotate_flu_ref || params.use_independant_gff
 
     // Init single file channels
     ch_host_fasta = []
@@ -293,17 +293,26 @@ workflow {
             }
     }
     if(params.use_independant_gff) {
+        // Extract the ref name from the fasta file
+        ch_viral_fasta_ref_name = ch_viral_fasta
+            .map { meta, fasta ->
+                def firstLine = fasta[0].withReader { reader -> reader.readLine() }
+                firstLine = firstLine.replaceFirst('^>', '')
+                [meta, firstLine]
+            }
+
+        // Join with gff for contig naming
         ch_viral_gff = ch_fastq
             .map{
                 def gff = file(it[0].gff, checkIfExists: true)
                 [[id:it[0].id], [gff]]
             }
+            .join(ch_viral_fasta_ref_name)
     }
 
     //
     // MODULE: Convert snapgene to gff if required
     //
-    // ch_viral_gff | view
     if(params.convert_snapgene) {
         SNAPGENE_TO_GFF (
             ch_viral_gff
@@ -863,7 +872,7 @@ workflow {
         ch_multiqc_files = ch_multiqc_files.mix(QUAST.out.tsv.collect{it[1]})
     }
 
-    if(params.viral_gff || params.annotate_flu_ref) {
+    if(params.viral_gff || params.annotate_flu_ref || params.use_independant_gff) {
         //
         // MODULE: Build snpeff db
         //
@@ -1035,16 +1044,16 @@ workflow {
                 [callers, files.flatten()]
             }
 
-        // //
-        // // MODULE: Track software versions
-        // //
+        //
+        // MODULE: Track software versions
+        //
         // CUSTOM_DUMPSOFTWAREVERSIONS (
         //     ch_versions.unique().collectFile()
         // )
 
-        // //
-        // // MODULE: MULTIQC
-        // //
+        //
+        // MODULE: MULTIQC
+        //
         // workflow_summary = multiqc_summary(workflow, params)
         // ch_workflow_summary = Channel.value(workflow_summary)
         // ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
@@ -1059,37 +1068,29 @@ workflow {
         //     [],
         //     []
         // )
-    }
 
-    if(params.run_report_export) {
-        // //
-        // // MODULE: Generate VCF report
-        // //
-        // if(params.run_nanopore_varcall || params.run_illumina_varcall) {
-        //     VCF_REPORT (
-        //         ch_vcf_files
-        //     )
-        // }
-
-        //
-        // MODULE: Export report data to pickle file
-        //
-        def json_summary = params_summary_map_json(workflow, params, false)
-        EXPORT_REPORT_DATA (
-            run_id,
-            json_summary,
-            ch_viral_ref_fasta_fai.map{[it[1], it[2]]}.collect(),
-            ch_samplesheet,
-            ch_orig_fastq.map{it[1]}.collect(),
-            ch_report_data_host,
-            ch_report_data_contam,
-            ch_report_data_align,
-            ch_report_data_coverage,
-            ch_consensus.map{it[1]}.collect(),
-            ch_vcf_files,
-            ch_compressed_vcf,
-            ch_count_table.collect{it[1]}
-        )
+        if(params.run_report_export) {
+            //
+            // MODULE: Export report data to pickle file
+            //
+            def json_summary = params_summary_map_json(workflow, params, false)
+            EXPORT_REPORT_DATA (
+                run_id,
+                json_summary,
+                ch_viral_ref_fasta_fai.map{[it[1], it[2]]}.collect(),
+                ch_viral_gff.map{it[1]}.collect(),
+                ch_samplesheet,
+                ch_orig_fastq.map{it[1]}.collect(),
+                ch_report_data_host,
+                ch_report_data_contam,
+                ch_report_data_align,
+                ch_report_data_coverage,
+                ch_consensus.map{it[1]}.collect(),
+                ch_vcf_files,
+                ch_compressed_vcf,
+                ch_count_table.collect{it[1]}
+            )
+        }
     }
 }
 
