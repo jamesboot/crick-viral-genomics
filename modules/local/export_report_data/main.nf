@@ -2,7 +2,7 @@ process EXPORT_REPORT_DATA {
     tag "$run_id"
     label 'process_single'
 
-    container "docker.io/thecrick/pipetech_genome_tools:0.3.44"
+    container "docker.io/thecrick/pipetech_genome_tools:0.4.39"
 
     input:
     val(run_id)
@@ -22,6 +22,7 @@ process EXPORT_REPORT_DATA {
 
     output:
     path("*.pkl"), emit: pkl
+    path("*.sh") , emit: sh
 
     when:
     task.ext.when == null || task.ext.when
@@ -32,6 +33,7 @@ process EXPORT_REPORT_DATA {
 
     import json
     import logging
+    import os
     from crick_genome_tools.reporting.report_data_parser import ReportDataParser
 
     logging.basicConfig(level=logging.INFO)
@@ -45,5 +47,11 @@ process EXPORT_REPORT_DATA {
     parser = ReportDataParser("data")
     parser.get_data(vcf_tools)
     parser.save_data("${run_id}.pkl")
+
+    run_script = '#!/bin/bash\\n\\nSCRIPT_DIR=\$(dirname "\$(realpath "\$0")")\\ndocker run -p 8501:8501 -v "\$SCRIPT_DIR:/data" thecrick/pipetech_genome_tools:0.4.39 streamlit run crick_genome_tools/reporting/reports/run_report.py -- --data_path /data/data --report_type aav'
+    rep_path = "run_interative_report.sh"
+    with open(rep_path, "w") as f:
+        f.write(run_script)
+    os.chmod(rep_path, 0o755)
     """
 }
