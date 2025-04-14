@@ -48,7 +48,8 @@ process EXPORT_REPORT_DATA {
     parser.get_data(vcf_tools)
     parser.save_data("${run_id}.pkl")
 
-    run_script = '#!/bin/bash\\n\\nSCRIPT_DIR=\$(dirname "\$(realpath "\$0")")\\ndocker run -p 8501:8501 -v "\$SCRIPT_DIR:/data" thecrick/pipetech_genome_tools:0.4.39 streamlit run crick_genome_tools/reporting/reports/run_report.py -- --data_path /data/data --report_type aav'
+    run_script = '#!/bin/bash\\n\\nSCRIPT_DIR=\$(dirname "\$(realpath "\$0")")\\ndocker run -p 8501:8501 -v "\$SCRIPT_DIR:/data" crick/st_report_server:latest streamlit run app/app.py --server.port 8501 --server.headless true -- --data_path /data/viral_genomics_pipeline.pkl --report_type aav'
+
     rep_path = "run_interative_report.sh"
     with open(rep_path, "w") as f:
         f.write(run_script)
