@@ -23,6 +23,7 @@ include { get_genome_attribute    } from './modules/local/util/references/main'
 // Create workflow summary
 log.info summary_log(workflow, params, params.debug, params.monochrome_logs)
 def summary_params = params_summary_map(workflow, params, params.debug)
+def json_summary = params_summary_map_json(workflow, params, false)
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1047,33 +1048,32 @@ workflow {
         //
         // MODULE: Track software versions
         //
-        // CUSTOM_DUMPSOFTWAREVERSIONS (
-        //     ch_versions.unique().collectFile()
-        // )
+        CUSTOM_DUMPSOFTWAREVERSIONS (
+            ch_versions.unique().collectFile()
+        )
 
         //
         // MODULE: MULTIQC
         //
-        // workflow_summary = multiqc_summary(workflow, params)
-        // ch_workflow_summary = Channel.value(workflow_summary)
-        // ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
-        // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
-        // ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
+        workflow_summary = multiqc_summary(workflow, params)
+        ch_workflow_summary = Channel.value(workflow_summary)
+        ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
+        ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
+        ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect())
 
-        // MULTIQC (
-        //     ch_multiqc_files.collect(),
-        //     ch_multiqc_config,
-        //     [],
-        //     ch_multiqc_logo,
-        //     [],
-        //     []
-        // )
+        MULTIQC (
+            ch_multiqc_files.collect(),
+            ch_multiqc_config,
+            [],
+            ch_multiqc_logo,
+            [],
+            []
+        )
 
         if(params.run_report_export) {
             //
             // MODULE: Export report data to pickle file
             //
-            def json_summary = params_summary_map_json(workflow, params, false)
             EXPORT_REPORT_DATA (
                 run_id,
                 json_summary,
