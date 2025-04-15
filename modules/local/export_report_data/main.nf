@@ -2,10 +2,11 @@ process EXPORT_REPORT_DATA {
     tag "$run_id"
     label 'process_single'
 
-    container "docker.io/thecrick/pipetech_genome_tools:0.4.39"
+    container "docker.io/thecrick/pipetech_genome_tools:0.4.40"
 
     input:
     val(run_id)
+    val(report_type)
     val(summary)
     path("data/ref/*")
     path("data/annotation/*")
@@ -48,7 +49,7 @@ process EXPORT_REPORT_DATA {
     parser.get_data(vcf_tools)
     parser.save_data("${run_id}.pkl")
 
-    run_script = '#!/bin/bash\\n\\nSCRIPT_DIR=\$(dirname "\$(realpath "\$0")")\\ndocker run -p 8501:8501 -v "\$SCRIPT_DIR:/data" crick/st_report_server:latest streamlit run app/app.py --server.port 8501 --server.headless true -- --data_path /data/viral_genomics_pipeline.pkl --report_type aav'
+    run_script = '#!/bin/bash\\n\\nSCRIPT_DIR=\$(dirname "\$(realpath "\$0")")\\ndocker run -p 8501:8501 -v "\$SCRIPT_DIR:/data" crick/st_report_server:latest streamlit run app/app.py --server.port 8501 --server.headless true -- --data_path /data/${run_id}.pkl --report_type ${report_type}'
 
     rep_path = "run_interative_report.sh"
     with open(rep_path, "w") as f:

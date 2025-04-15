@@ -351,7 +351,10 @@ workflow {
     )
     ch_versions   = ch_versions.mix(CAT_FASTQ.out.versions)
     ch_fastq      = CAT_FASTQ.out.reads.mix(ch_fastq_merge.single)
-    ch_orig_fastq = ch_fastq
+    ch_orig_fastq = []
+    if(params.run_nanopore_qc_trim) {
+        ch_orig_fastq = ch_fastq.map{it[1]}.collect()
+    }
 
     //
     // SECTION: Read QC and preprocessing
@@ -1028,7 +1031,7 @@ workflow {
         //
         // CHANNEL: Prepare VCF files for report
         //
-        ch_vcf_files = ch_vcf_files
+        ch_vcf_files_prep = ch_vcf_files
             .groupTuple(by: [0])
             .map { meta, files, callers, order ->
                     def sorted_files_and_callers = [files, callers].transpose().sort { a, b ->
@@ -1076,17 +1079,18 @@ workflow {
             //
             EXPORT_REPORT_DATA (
                 run_id,
+                params.export_report_type,
                 json_summary,
                 ch_viral_ref_fasta_fai.map{[it[1], it[2]]}.collect(),
                 ch_viral_gff.map{it[1]}.collect(),
                 ch_samplesheet,
-                ch_orig_fastq.map{it[1]}.collect(),
+                ch_orig_fastq,
                 ch_report_data_host,
                 ch_report_data_contam,
                 ch_report_data_align,
                 ch_report_data_coverage,
                 ch_consensus.map{it[1]}.collect(),
-                ch_vcf_files,
+                ch_vcf_files_prep,
                 ch_compressed_vcf,
                 ch_count_table.collect{it[1]}
             )
