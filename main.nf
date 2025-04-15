@@ -8,10 +8,11 @@ nextflow.enable.dsl = 2
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { params_summary_map   } from './modules/local/util/logging/main'
-include { summary_log          } from './modules/local/util/logging/main'
-include { multiqc_summary      } from './modules/local/util/logging/main'
-include { get_genome_attribute } from './modules/local/util/references/main'
+include { params_summary_map      } from './modules/local/util/logging/main'
+include { params_summary_map_json } from './modules/local/util/logging/main'
+include { summary_log             } from './modules/local/util/logging/main'
+include { multiqc_summary         } from './modules/local/util/logging/main'
+include { get_genome_attribute    } from './modules/local/util/references/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -22,6 +23,7 @@ include { get_genome_attribute } from './modules/local/util/references/main'
 // Create workflow summary
 log.info summary_log(workflow, params, params.debug, params.monochrome_logs)
 def summary_params = params_summary_map(workflow, params, params.debug)
+def json_summary = params_summary_map_json(workflow, params, false)
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -32,6 +34,7 @@ def summary_params = params_summary_map(workflow, params, params.debug)
 include { LINUX_COMMAND as MERGE_REFS            } from './modules/local/linux/command/main'
 include { SEQ_SIMULATOR                          } from './modules/local/seq_simulator/main'
 include { SAMPLESHEET_CHECK                      } from './modules/local/samplesheet/check/main'
+include { SNAPGENE_TO_GFF                        } from './modules/local/snapgene_to_gff/main'
 include { LINUX_COMMAND as FORCE_REF_UPPER       } from './modules/local/linux/command/main'
 include { CAT_FASTQ                              } from './modules/nf-core/cat/fastq/main'
 include { LINUX_COMMAND as SPLIT_REF             } from './modules/local/linux/command/main'
@@ -61,6 +64,7 @@ include { MUSCLE                                 } from './modules/nf-core/muscl
 include { PANGOLIN                               } from './modules/nf-core/pangolin/main'
 include { NEXTCLADE_DATASETGET                   } from './modules/nf-core/nextclade/datasetget/main'
 include { NEXTCLADE_RUN                          } from './modules/nf-core/nextclade/run/main'
+include { EXPORT_REPORT_DATA                     } from './modules/local/export_report_data/main'
 include { VCF_REPORT                             } from './modules/local/vcf_report/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS            } from './modules/local/custom_dumpsoftwareversions.nf'
 include { MULTIQC                                } from './modules/nf-core/multiqc/main'
@@ -96,6 +100,12 @@ workflow {
     ch_multiqc_config = file("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
     ch_multiqc_logo   = file("$projectDir/assets/The_Francis_Crick_Institute_logo.png", checkIfExists: true)
     ch_seq_sim_config = file(params.seq_sim_config, checkIfExists: true)
+
+    // Configure run_id
+    def run_id = params.run_id
+    if(params.run_id == null) {
+        run_id = "viral_genomics_pipeline"
+    }
 
     // Resolve references, load from genome if possible but then override from params if supplied
     def host_fasta = get_genome_attribute(params, 'fasta')
@@ -142,7 +152,7 @@ workflow {
 
     // Init variables
     def multi_ref = params.run_assemble_ref || params.use_independant_refs || params.run_iterative_align
-    def is_gff    = params.viral_gff != null || params.annotate_flu_ref
+    def is_gff    = params.viral_gff != null || params.annotate_flu_ref || params.use_independant_gff
 
     // Init single file channels
     ch_host_fasta = []
@@ -274,7 +284,7 @@ workflow {
     }
 
     //
-    // SECTION: Independant reference processing
+    // MODULE: Independant reference and gff processing
     //
     if(params.use_independant_refs) {
         ch_viral_fasta = ch_fastq
@@ -282,6 +292,33 @@ workflow {
                 def ref = file(it[0].ref, checkIfExists: true)
                 [[id:it[0].id], [ref]]
             }
+    }
+    if(params.use_independant_gff) {
+        // Extract the ref name from the fasta file
+        ch_viral_fasta_ref_name = ch_viral_fasta
+            .map { meta, fasta ->
+                def firstLine = fasta[0].withReader { reader -> reader.readLine() }
+                firstLine = firstLine.replaceFirst('^>', '')
+                [meta, firstLine]
+            }
+
+        // Join with gff for contig naming
+        ch_viral_gff = ch_fastq
+            .map{
+                def gff = file(it[0].gff, checkIfExists: true)
+                [[id:it[0].id], [gff]]
+            }
+            .join(ch_viral_fasta_ref_name)
+    }
+
+    //
+    // MODULE: Convert snapgene to gff if required
+    //
+    if(params.convert_snapgene) {
+        SNAPGENE_TO_GFF (
+            ch_viral_gff
+        )
+        ch_viral_gff = SNAPGENE_TO_GFF.out.gff
     }
 
     //
@@ -312,8 +349,12 @@ workflow {
     CAT_FASTQ (
         ch_fastq_merge.multiple
     )
-    ch_versions = ch_versions.mix(CAT_FASTQ.out.versions)
-    ch_fastq    = CAT_FASTQ.out.reads.mix(ch_fastq_merge.single)
+    ch_versions   = ch_versions.mix(CAT_FASTQ.out.versions)
+    ch_fastq      = CAT_FASTQ.out.reads.mix(ch_fastq_merge.single)
+    ch_orig_fastq = []
+    if(params.run_nanopore_qc_trim) {
+        ch_orig_fastq = ch_fastq.map{it[1]}.collect()
+    }
 
     //
     // SECTION: Read QC and preprocessing
@@ -353,6 +394,7 @@ workflow {
     //
     // SUBWORKFLOW: Remove host reads
     //
+    ch_report_data_host = []
     if(params.run_remove_host_reads && host_fasta != null) {
         def remove_host_mode = "illumina"
         if(params.run_minimap_align) {
@@ -365,11 +407,12 @@ workflow {
             remove_host_mode
 
         )
-        ch_versions      = ch_versions.mix(REMOVE_HOST.out.versions)
-        ch_fastq         = REMOVE_HOST.out.viral_fastq
-        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_HOST.out.host_bam_stats.collect{it[1]})
-        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_HOST.out.host_bam_flagstat.collect{it[1]})
-        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_HOST.out.host_bam_idxstats.collect{it[1]})
+        ch_versions         = ch_versions.mix(REMOVE_HOST.out.versions)
+        ch_fastq            = REMOVE_HOST.out.viral_fastq
+        ch_multiqc_files    = ch_multiqc_files.mix(REMOVE_HOST.out.host_bam_stats.collect{it[1]})
+        ch_multiqc_files    = ch_multiqc_files.mix(REMOVE_HOST.out.host_bam_flagstat.collect{it[1]})
+        ch_multiqc_files    = ch_multiqc_files.mix(REMOVE_HOST.out.host_bam_idxstats.collect{it[1]})
+        ch_report_data_host = REMOVE_HOST.out.host_bam_flagstat.collect{it[1]}
     }
 
     //
@@ -401,6 +444,7 @@ workflow {
     //
     // SUBWORKFLOW: Remove contaminent reads
     //
+    ch_report_data_contam = []
     if(params.run_remove_contaminant_reads && params.contaminant_fasta != null) {
         def remove_contaminent_mode = "illumina"
         if(params.run_minimap_align) {
@@ -414,11 +458,12 @@ workflow {
             multi_ref
 
         )
-        ch_versions      = ch_versions.mix(REMOVE_CONTAMINANTS.out.versions)
-        ch_fastq         = REMOVE_CONTAMINANTS.out.viral_fastq
-        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_CONTAMINANTS.out.contam_bam_stats.collect{it[1]})
-        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_CONTAMINANTS.out.contam_bam_flagstat.collect{it[1]})
-        ch_multiqc_files = ch_multiqc_files.mix(REMOVE_CONTAMINANTS.out.contam_bam_idxstats.collect{it[1]})
+        ch_versions           = ch_versions.mix(REMOVE_CONTAMINANTS.out.versions)
+        ch_fastq              = REMOVE_CONTAMINANTS.out.viral_fastq
+        ch_multiqc_files      = ch_multiqc_files.mix(REMOVE_CONTAMINANTS.out.contam_bam_stats.collect{it[1]})
+        ch_multiqc_files      = ch_multiqc_files.mix(REMOVE_CONTAMINANTS.out.contam_bam_flagstat.collect{it[1]})
+        ch_multiqc_files      = ch_multiqc_files.mix(REMOVE_CONTAMINANTS.out.contam_bam_idxstats.collect{it[1]})
+        ch_report_data_contam = REMOVE_CONTAMINANTS.out.contam_bam_idxstats.collect{it[1]}
     }
 
     //
@@ -617,12 +662,13 @@ workflow {
         ch_bam,
         [[],[]]
     )
-    ch_versions      = ch_versions.mix(BAM_VIRAL_SORT_STATS.out.versions)
-    ch_bam           = BAM_VIRAL_SORT_STATS.out.bam
-    ch_bai           = BAM_VIRAL_SORT_STATS.out.bai
-    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.stats.collect{it[1]})
-    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]})
-    ch_multiqc_files = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
+    ch_versions          = ch_versions.mix(BAM_VIRAL_SORT_STATS.out.versions)
+    ch_bam               = BAM_VIRAL_SORT_STATS.out.bam
+    ch_bai               = BAM_VIRAL_SORT_STATS.out.bai
+    ch_multiqc_files     = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.stats.collect{it[1]})
+    ch_multiqc_files     = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]})
+    ch_multiqc_files     = ch_multiqc_files.mix(BAM_VIRAL_SORT_STATS.out.idxstats.collect{it[1]})
+    ch_report_data_align = BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]}
 
     //
     // CHANNEL: Join bam to bai
@@ -748,6 +794,7 @@ workflow {
     ch_consensus = Channel.empty()
     ch_variants  = Channel.empty()
     ch_vcf_files = Channel.empty()
+    ch_compressed_vcf = []
     if(params.run_nanopore_varcall) {
         NANOPORE_VARCALL (
             ch_trimmed_bam_bai,
@@ -763,6 +810,12 @@ workflow {
         ch_consensus = NANOPORE_VARCALL.out.consensus
         ch_variants  = NANOPORE_VARCALL.out.clair3_vcf_tbi
         ch_vcf_files = NANOPORE_VARCALL.out.vcf_files
+        ch_compressed_vcf = NANOPORE_VARCALL.out.medaka_vcf_tbi.map{[it[1], it[2]]}
+            .mix(NANOPORE_VARCALL.out.clair3_vcf_tbi.map{[it[1], it[2]]})
+            .mix(NANOPORE_VARCALL.out.lofreq_vcf_tbi.map{[it[1], it[2]]})
+            .mix(NANOPORE_VARCALL.out.sniffles_vcf_tbi.map{[it[1], it[2]]})
+            .flatten()
+            .collect()
     } else if(params.run_illumina_varcall) {
         ILLUMINA_VARCALL(
             ch_bam_bai_fasta_fai
@@ -823,7 +876,7 @@ workflow {
         ch_multiqc_files = ch_multiqc_files.mix(QUAST.out.tsv.collect{it[1]})
     }
 
-    if(params.viral_gff || params.annotate_flu_ref) {
+    if(params.viral_gff || params.annotate_flu_ref || params.use_independant_gff) {
         //
         // MODULE: Build snpeff db
         //
@@ -867,7 +920,7 @@ workflow {
         }
     }
 
-
+    ch_count_table = []
     if(params.run_gen_count_table) {
         //
         // MODULE: Calculate the pileip 
@@ -884,6 +937,7 @@ workflow {
         GEN_COUNT_TABLE (
             SAMTOOLS_MPILEUP.out.mpileup
         )
+        ch_count_table = GEN_COUNT_TABLE.out.csv
     }
 
     //
@@ -893,8 +947,9 @@ workflow {
         ch_bam_bai_fasta_fai.map{[it[0], it[1], it[2], []]},
         ch_bam_bai_fasta_fai.map{[it[0], it[3]]},
     )
-    ch_versions      = ch_versions.mix(MOSDEPTH.out.versions)
-    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]})
+    ch_versions             = ch_versions.mix(MOSDEPTH.out.versions)
+    ch_multiqc_files        = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]})
+    ch_report_data_coverage = MOSDEPTH.out.per_base_bed.collect{it[1]}
 
     if(params.run_nanopore_varcall || params.run_illumina_varcall) {
         //
@@ -976,7 +1031,7 @@ workflow {
         //
         // CHANNEL: Prepare VCF files for report
         //
-        ch_vcf_files = ch_vcf_files
+        ch_vcf_files_prep = ch_vcf_files
             .groupTuple(by: [0])
             .map { meta, files, callers, order ->
                     def sorted_files_and_callers = [files, callers].transpose().sort { a, b ->
@@ -984,15 +1039,14 @@ workflow {
                 }.transpose()
                 [meta, sorted_files_and_callers[0], sorted_files_and_callers[1]]
             }
-
-        //
-        // MODULE: Generate VCF report
-        //
-        if(params.run_nanopore_varcall || params.run_illumina_varcall) {
-            VCF_REPORT (
-                ch_vcf_files
-            )
-        }
+            .collect { meta, files, callers ->
+                    [callers, files.collect()]
+            }
+            .map { arr ->
+                def callers = arr[0]
+                def files = arr.indices.findAll { it % 2 == 1 }.collect { arr[it] }
+                [callers, files.flatten()]
+            }
 
         //
         // MODULE: Track software versions
@@ -1018,6 +1072,29 @@ workflow {
             [],
             []
         )
+
+        if(params.run_report_export) {
+            //
+            // MODULE: Export report data to pickle file
+            //
+            EXPORT_REPORT_DATA (
+                run_id,
+                params.export_report_type,
+                json_summary,
+                ch_viral_ref_fasta_fai.map{[it[1], it[2]]}.collect(),
+                ch_viral_gff.map{it[1]}.collect(),
+                ch_samplesheet,
+                ch_orig_fastq,
+                ch_report_data_host,
+                ch_report_data_contam,
+                ch_report_data_align,
+                ch_report_data_coverage,
+                ch_consensus.map{it[1]}.collect(),
+                ch_vcf_files_prep,
+                ch_compressed_vcf,
+                ch_count_table.collect{it[1]}
+            )
+        }
     }
 }
 

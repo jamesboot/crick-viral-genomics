@@ -9,6 +9,8 @@ include { BWA_INDEX as BWA_INDEX_HOST                      } from '../../../modu
 include { BWA_MEM as BWA_ALIGN_HOST                        } from '../../../modules/nf-core/bwa/mem/main'
 include { MINIMAP2_INDEX                                   } from '../../../modules/nf-core/minimap2/index/main'
 include { MINIMAP2_ALIGN                                   } from '../../../modules/nf-core/minimap2/align/main'
+include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_CONTAM          } from '../../../modules/nf-core/samtools/index/main'
+include { SAMTOOLS_VIEW as SAMTOOLS_VIEW_FILT_SEC          } from '../../../modules/nf-core/samtools/view/main'
 include { BAM_SORT_STATS_SAMTOOLS as BAM_CONTAM_SORT_STATS } from '../../../subworkflows/nf-core/bam_sort_stats_samtools/main'
 include { SAMTOOLS_VIEW as SAMTOOLS_VIEW_CONTAM            } from '../../../modules/nf-core/samtools/view/main'
 include { SAMTOOLS_SORT as SAMTOOLS_SORT_VIRAL             } from '../../../modules/nf-core/samtools/sort/main'
@@ -131,10 +133,34 @@ workflow REMOVE_CONTAMINANTS {
     }
 
     //
+    // MODULE: Index reads
+    //
+    SAMTOOLS_INDEX_CONTAM (
+        ch_contam_bam,
+    )
+    ch_versions   = ch_versions.mix(SAMTOOLS_INDEX_CONTAM.out.versions)
+    ch_contam_bai = SAMTOOLS_INDEX_CONTAM.out.bai
+    ch_contam_bam_bai = ch_contam_bam
+    .map { row -> [row[0].id, row ].flatten()}
+    .join ( ch_contam_bai.map { row -> [row[0].id, row ].flatten()} )
+    .map { row -> [row[1], row[2], row[4]] }
+
+    //
+    // MODULE: Filter out secondary alignments
+    //
+    SAMTOOLS_VIEW_FILT_SEC (
+        ch_contam_bam_bai,
+        [[],[]],
+        [],
+        []
+    )
+    ch_versions = ch_versions.mix(SAMTOOLS_VIEW_FILT_SEC.out.versions)
+
+    //
     // SUBWORKFLOW: Sort, index BAM file and run samtools stats, flagstat and idxstats
     //
     BAM_CONTAM_SORT_STATS (
-        ch_contam_bam,
+        SAMTOOLS_VIEW_FILT_SEC.out.bam,
         [[],[]]
     )
     ch_versions            = ch_versions.mix(BAM_CONTAM_SORT_STATS.out.versions)
@@ -181,7 +207,7 @@ workflow REMOVE_CONTAMINANTS {
         ch_viral_bam,
         false
     )
-    ch_versions    = ch_versions.mix(SAMTOOLS_FASTQ_VIRAL.out.versions)
+    ch_versions = ch_versions.mix(SAMTOOLS_FASTQ_VIRAL.out.versions)
 
     // Reads come out of different channels depending if we have paried end or single-end
     if(mode == "illumina") {
