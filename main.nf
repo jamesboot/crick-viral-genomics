@@ -47,6 +47,7 @@ include { BWA_INDEX as BWA_INDEX_VIRUS           } from './modules/nf-core/bwa/i
 include { BWA_MEM as BWA_ALIGN_VIRUS             } from './modules/nf-core/bwa/mem/main'
 include { SAMTOOLS_FAIDX                         } from './modules/nf-core/samtools/faidx/main'
 include { PICARD_MARKDUPLICATES                  } from './modules/nf-core/picard/markduplicates/main'
+include { SEQKIT_BAM                             } from './modules/local/seqkit/bam/main'
 include { ARTIC_ALIGN_TRIM                       } from './modules/local/artic/align_trim/main'
 include { SAMTOOLS_SORT as SORT_PRIMER_TRIMMED   } from './modules/nf-core/samtools/sort/main'
 include { SAMTOOLS_INDEX as INDEX_TRIMMED        } from './modules/nf-core/samtools/index/main'
@@ -671,6 +672,15 @@ workflow {
     ch_report_data_align = BAM_VIRAL_SORT_STATS.out.flagstat.collect{it[1]}
 
     //
+    // MODULE: Calculate Seqkit stats
+    //
+    SEQKIT_BAM(
+        ch_bam
+    )
+    ch_versions   = ch_versions.mix(SEQKIT_BAM.out.versions)
+    ch_seqkit_tsv = SEQKIT_BAM.out.tsv
+
+    //
     // CHANNEL: Join bam to bai
     //
     ch_bam_bai = ch_bam
@@ -1074,6 +1084,11 @@ workflow {
         )
 
         if(params.run_report_export) {
+            ch_truncation = []
+            if(params.calculate_truncation) {
+                ch_truncation = ch_seqkit_tsv.collect{it[1]}
+            }
+
             //
             // MODULE: Export report data to pickle file
             //
@@ -1092,7 +1107,8 @@ workflow {
                 ch_consensus.map{it[1]}.collect(),
                 ch_vcf_files_prep,
                 ch_compressed_vcf,
-                ch_count_table.collect{it[1]}
+                ch_count_table.collect{it[1]},
+                ch_truncation
             )
         }
     }

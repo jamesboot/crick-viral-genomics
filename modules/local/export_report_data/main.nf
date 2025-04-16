@@ -2,7 +2,7 @@ process EXPORT_REPORT_DATA {
     tag "$run_id"
     label 'process_single'
 
-    container "docker.io/thecrick/pipetech_genome_tools:0.4.40"
+    container "docker.io/thecrick/pipetech_genome_tools:0.4.41"
 
     input:
     val(run_id)
@@ -20,6 +20,7 @@ process EXPORT_REPORT_DATA {
     tuple val(vcf_tools), path("data/variants/*")
     path("data/variants_compressed/*")
     path("data/count_table/*")
+    path("data/truncation/*")
 
     output:
     path("*.pkl"), emit: pkl
