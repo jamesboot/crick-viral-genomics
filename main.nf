@@ -47,6 +47,8 @@ include { BWA_INDEX as BWA_INDEX_VIRUS           } from './modules/nf-core/bwa/i
 include { BWA_MEM as BWA_ALIGN_VIRUS             } from './modules/nf-core/bwa/mem/main'
 include { SAMTOOLS_FAIDX                         } from './modules/nf-core/samtools/faidx/main'
 include { PICARD_MARKDUPLICATES                  } from './modules/nf-core/picard/markduplicates/main'
+include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_VIRUS } from './modules/nf-core/samtools/index/main'
+include { SAMTOOLS_VIEW as SAMTOOLS_FILTER_VIRUS } from './modules/nf-core/samtools/view/main'
 include { SEQKIT_BAM                             } from './modules/local/seqkit/bam/main'
 include { ARTIC_ALIGN_TRIM                       } from './modules/local/artic/align_trim/main'
 include { SAMTOOLS_SORT as SORT_PRIMER_TRIMMED   } from './modules/nf-core/samtools/sort/main'
@@ -641,6 +643,27 @@ workflow {
     .map { [it[0].id, it ]}
     .join ( ch_viral_ref_fai.map { [it[0].id, it[1]] })
     .map{ [it[1][0], it[1][1], it[2]] }
+
+    //
+    // MODULE: Index and Filter for primary alignments only
+    //
+    SAMTOOLS_INDEX_VIRUS (
+        ch_bam,
+    )
+    ch_versions   = ch_versions.mix(SAMTOOLS_INDEX_VIRUS.out.versions)
+    ch_bai        = SAMTOOLS_INDEX_VIRUS.out.bai
+    ch_bam_bai = ch_bam
+        .map { [it[0].id, it ]}
+        .join ( ch_bai.map { [it[0].id, it[1]] })
+        .map{ [it[1][0], it[1][1], it[2]] }
+    SAMTOOLS_FILTER_VIRUS (
+        ch_bam_bai,
+        [[],[]],
+        [],
+        []
+    )
+    ch_versions = ch_versions.mix(SAMTOOLS_FILTER_VIRUS.out.versions)
+    ch_bam      = SAMTOOLS_FILTER_VIRUS.out.bam
 
     //
     // MODULE: Mark duplicates
