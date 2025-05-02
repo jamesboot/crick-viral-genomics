@@ -46,19 +46,19 @@ module_order:
       path_filters:
         - "*trimmed*fastqc.zip"
   - samtools:
-      name: "ALINGMENT: Host Genome Alignment Stats"
+      name: "ALIGNMENT: Host Genome Alignment Stats"
       anchor: "samtools_host"
       info: ""
       path_filters:
         - "*host*"
+  # - samtools:
+  #     name: "ALINGMENT: Contaminent Genome Alignment Stats"
+  #     anchor: "samtools_contaminent"
+  #     info: ""
+  #     path_filters:
+  #       - "*contam*"
   - samtools:
-      name: "ALINGMENT: Contaminent Genome Alignment Stats"
-      anchor: "samtools_contaminent"
-      info: ""
-      path_filters:
-        - "*contam*"
-  - samtools:
-      name: "ALINGMENT: Viral Genome Alignment Stats"
+      name: "ALIGNMENT: Viral Genome Alignment Stats"
       anchor: "samtools_viral"
       info: ""
       path_filters:

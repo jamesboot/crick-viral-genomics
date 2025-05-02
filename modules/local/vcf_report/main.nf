@@ -21,7 +21,7 @@ process VCF_REPORT {
 
     generate_merged_vcf_report([${vcfs.collect{"\"${it}\""}.join(",")}], ${tools.collect{"\"${it}\""}}, "${output}")
 
-    run_script = '#!/bin/bash\\n\\nSCRIPT_DIR=\$(dirname "\$(realpath "\$0")")\\ndocker run -p 8501:8501 -v "\$SCRIPT_DIR:/data" thecrick/pipetech_vg_report:latest streamlit run crick_genome_tools/reporting/interactive_vcf_report.py -- --data_path /data/${output}'
+    run_script = '#!/bin/bash\\n\\nSCRIPT_DIR=\$(dirname "\$(realpath "\$0")")\\ndocker run -p 8501:8501 -v "\$SCRIPT_DIR:/data" thecrick/pipetech_genomics_report:latest streamlit run crick_genome_tools/reporting/interactive_vcf_report.py -- --data_path /data/${output}'
     rep_path = "${prefix}_run_interative_report.sh"
     with open(rep_path, "w") as f:
         f.write(run_script)
