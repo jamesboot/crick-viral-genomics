@@ -28,6 +28,7 @@ process IVAR_TRIM {
         -i $bam \\
         -b $bed \\
         -p $prefix \\
+        -e \\
         > ${prefix}.ivar.log
 
     cat <<-END_VERSIONS > versions.yml
